@@ -19,11 +19,11 @@ class MyApp extends StatefulWidget {
 }
 
 // Create constants
-const String _sdkKey = "YOUR_SDK_KEY";
+const String _sdkKey = "e75FnQfS9XTTqM1Kne69U7PW_MBgAnGQTFvtwVVui6kRPKs5L7ws9twr5IQWwVfzPKZ5pF2IfDa7lguMgGlCyt";
 
-final String _interstitialAdUnitId = Platform.isAndroid ? "ANDROID_INTER_AD_UNIT_ID" : "IOS_INTER_AD_UNIT_ID";
+final String _interstitialAdUnitId = Platform.isAndroid ? "f4a542a4bda4c5f1" : "IOS_INTER_AD_UNIT_ID";
 final String _rewardedAdUnitId = Platform.isAndroid ? "ANDROID_REWARDED_AD_UNIT_ID" : "IOS_REWARDED_AD_UNIT_ID";
-final String _bannerAdUnitId = Platform.isAndroid ? "ANDROID_BANNER_AD_UNIT_ID" : "IOS_BANNER_AD_UNIT_ID";
+final String _bannerAdUnitId = Platform.isAndroid ? "aed1455d708c540e" : "IOS_BANNER_AD_UNIT_ID";
 final String _mrecAdUnitId = Platform.isAndroid ? "ANDROID_MREC_AD_UNIT_ID" : "IOS_MREC_AD_UNIT_ID";
 
 // Create states
