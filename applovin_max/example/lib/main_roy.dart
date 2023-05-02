@@ -31,13 +31,9 @@ final String _bannerAdUnitId =
 var _isInitialized = false;
 var _interstitialLoadState = AdLoadState.notLoaded;
 var _interstitialRetryAttempt = 0;
-var _rewardedAdLoadState = AdLoadState.notLoaded;
-var _rewardedAdRetryAttempt = 0;
 var _isProgrammaticBannerCreated = false;
 var _isProgrammaticBannerShowing = false;
 var _isWidgetBannerShowing = false;
-var _isProgrammaticMRecShowing = false;
-var _isWidgetMRecShowing = false;
 
 var _statusText = "";
 
@@ -109,43 +105,6 @@ class _MyAppState extends State<MyApp> {
       },
     ));
 
-    /// Rewarded Ad Listeners
-    AppLovinMAX.setRewardedAdListener(
-        RewardedAdListener(onAdLoadedCallback: (ad) {
-      _rewardedAdLoadState = AdLoadState.loaded;
-
-      // Rewarded ad is ready to be shown. AppLovinMAX.isRewardedAdReady(_rewarded_ad_unit_id) will now return 'true'
-      logStatus('Rewarded ad loaded from ${ad.networkName}');
-
-      // Reset retry attempt
-      _rewardedAdRetryAttempt = 0;
-    }, onAdLoadFailedCallback: (adUnitId, error) {
-      _rewardedAdLoadState = AdLoadState.notLoaded;
-
-      // Rewarded ad failed to load
-      // We recommend retrying with exponentially higher delays up to a maximum delay (in this case 64 seconds)
-      _rewardedAdRetryAttempt = _rewardedAdRetryAttempt + 1;
-
-      int retryDelay = pow(2, min(6, _rewardedAdRetryAttempt)).toInt();
-      logStatus(
-          'Rewarded ad failed to load with code ${error.code} - retrying in ${retryDelay}s');
-    }, onAdDisplayedCallback: (ad) {
-      logStatus('Rewarded ad displayed');
-    }, onAdDisplayFailedCallback: (ad, error) {
-      _rewardedAdLoadState = AdLoadState.notLoaded;
-      logStatus(
-          'Rewarded ad failed to display with code ${error.code} and message ${error.message}');
-    }, onAdClickedCallback: (ad) {
-      logStatus('Rewarded ad clicked');
-    }, onAdHiddenCallback: (ad) {
-      _rewardedAdLoadState = AdLoadState.notLoaded;
-      logStatus('Rewarded ad hidden');
-    }, onAdReceivedRewardCallback: (ad, reward) {
-      logStatus('Rewarded ad granted reward');
-    }, onAdRevenuePaidCallback: (ad) {
-      logStatus('Rewarded ad revenue paid: ${ad.revenue}');
-    }));
-
     /// Banner Ad Listeners
     AppLovinMAX.setBannerListener(AdViewAdListener(onAdLoadedCallback: (ad) {
       logStatus('Banner ad loaded from ${ad.networkName}');
@@ -161,22 +120,6 @@ class _MyAppState extends State<MyApp> {
     }, onAdRevenuePaidCallback: (ad) {
       logStatus('Banner ad revenue paid: ${ad.revenue}');
     }));
-
-    /// MREC Ad Listeners
-    AppLovinMAX.setMRecListener(AdViewAdListener(onAdLoadedCallback: (ad) {
-      logStatus('MREC ad loaded from ${ad.networkName}');
-    }, onAdLoadFailedCallback: (adUnitId, error) {
-      logStatus(
-          'MREC ad failed to load with error code ${error.code} and message: ${error.message}');
-    }, onAdClickedCallback: (ad) {
-      logStatus('MREC ad clicked');
-    }, onAdExpandedCallback: (ad) {
-      logStatus('MREC ad expanded');
-    }, onAdCollapsedCallback: (ad) {
-      logStatus('MREC ad collapsed');
-    }, onAdRevenuePaidCallback: (ad) {
-      logStatus('MREC ad revenue paid: ${ad.revenue}');
-    }));
   }
 
   String getInterstitialButtonTitle() {
@@ -189,16 +132,6 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-  String getRewardedButtonTitle() {
-    if (_rewardedAdLoadState == AdLoadState.notLoaded) {
-      return "Load Rewarded Ad";
-    } else if (_rewardedAdLoadState == AdLoadState.loading) {
-      return "Loading...";
-    } else {
-      return "Show Rewarded Ad"; // adLoadState.loaded
-    }
-  }
-
   String getProgrammaticBannerButtonTitle() {
     return _isProgrammaticBannerShowing
         ? 'Hide Programmatic Banner'
@@ -207,16 +140,6 @@ class _MyAppState extends State<MyApp> {
 
   String getWidgetBannerButtonTitle() {
     return _isWidgetBannerShowing ? 'Hide Widget Banner' : 'Show Widget Banner';
-  }
-
-  String getProgrammaticMRecButtonTitle() {
-    return _isProgrammaticMRecShowing
-        ? 'Hide Programmatic MREC'
-        : 'Show Programmatic MREC';
-  }
-
-  String getWidgetMRecButtonTitle() {
-    return _isWidgetMRecShowing ? 'Hide Widget MREC' : 'Show Widget MREC';
   }
 
   void logStatus(String status) {
@@ -244,6 +167,8 @@ class _MyAppState extends State<MyApp> {
                 style: const TextStyle(fontSize: 20),
                 textAlign: TextAlign.center,
               ),
+
+              //Mediation Debugger
               ElevatedButton(
                 onPressed: _isInitialized
                     ? () {
@@ -252,6 +177,8 @@ class _MyAppState extends State<MyApp> {
                     : null,
                 child: const Text("Mediation Debugger"),
               ),
+
+              //Interstitial
               ElevatedButton(
                 onPressed: (_isInitialized &&
                         _interstitialLoadState != AdLoadState.loading)
@@ -272,6 +199,7 @@ class _MyAppState extends State<MyApp> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
+                  //Programmatic banner
                   ElevatedButton(
                     onPressed: (_isInitialized && !_isWidgetBannerShowing)
                         ? () async {
@@ -303,6 +231,8 @@ class _MyAppState extends State<MyApp> {
                         : null,
                     child: Text(getProgrammaticBannerButtonTitle()),
                   ),
+
+                  //widget banner
                   ElevatedButton(
                     onPressed: (_isInitialized && !_isProgrammaticBannerShowing)
                         ? () async {
@@ -316,24 +246,29 @@ class _MyAppState extends State<MyApp> {
                 ],
               ),
               if (_isWidgetBannerShowing)
-                MaxAdView(
-                    adUnitId: _bannerAdUnitId,
-                    adFormat: AdFormat.banner,
-                    listener: AdViewAdListener(onAdLoadedCallback: (ad) {
-                      logStatus(
-                          'Banner widget ad loaded from ${ad.networkName}');
-                    }, onAdLoadFailedCallback: (adUnitId, error) {
-                      logStatus(
-                          'Banner widget ad failed to load with error code ${error.code} and message: ${error.message}');
-                    }, onAdClickedCallback: (ad) {
-                      logStatus('Banner widget ad clicked');
-                    }, onAdExpandedCallback: (ad) {
-                      logStatus('Banner widget ad expanded');
-                    }, onAdCollapsedCallback: (ad) {
-                      logStatus('Banner widget ad collapsed');
-                    }, onAdRevenuePaidCallback: (ad) {
-                      logStatus('Banner widget ad revenue paid: ${ad.revenue}');
-                    })),
+                Container(
+                  margin: const EdgeInsets.only(top: 100),
+                  color: Colors.red,
+                  child: MaxAdView(
+                      adUnitId: _bannerAdUnitId,
+                      adFormat: AdFormat.banner,
+                      listener: AdViewAdListener(onAdLoadedCallback: (ad) {
+                        logStatus(
+                            'Banner widget ad loaded from ${ad.networkName}');
+                      }, onAdLoadFailedCallback: (adUnitId, error) {
+                        logStatus(
+                            'Banner widget ad failed to load with error code ${error.code} and message: ${error.message}');
+                      }, onAdClickedCallback: (ad) {
+                        logStatus('Banner widget ad clicked');
+                      }, onAdExpandedCallback: (ad) {
+                        logStatus('Banner widget ad expanded');
+                      }, onAdCollapsedCallback: (ad) {
+                        logStatus('Banner widget ad collapsed');
+                      }, onAdRevenuePaidCallback: (ad) {
+                        logStatus('Banner widget ad revenue paid: ${ad.revenue}');
+                      })),
+                ),
+
             ],
           )),
     );
