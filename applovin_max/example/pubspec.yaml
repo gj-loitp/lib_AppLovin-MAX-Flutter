@@ -1,3 +1,4 @@
+name: com.roy.applovintest
 description: Demonstrates how to use the AppLovin MAX plugin.
 
 # The following line prevents the package from being accidentally published to
@@ -11,12 +12,8 @@ dependencies:
   flutter:
     sdk: flutter
 
+#  applovin_max: ^2.5.0
   applovin_max:
-    # When depending on this package from a real application you should use:
-    #   applovin_max: ^x.y.z
-    # See https://dart.dev/tools/pub/dependencies#version-constraints
-    # The example app is bundled with the plugin so we use a path dependency on
-    # the parent directory to use the current plugin's version.
     path: ../
 
   cupertino_icons: ^1.0.2
@@ -26,6 +23,5 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^2.0.0
-
 flutter:
   uses-material-design: true
