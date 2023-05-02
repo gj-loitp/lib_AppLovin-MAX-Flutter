@@ -215,7 +215,7 @@ class _MyAppState extends State<MyApp> {
 
                                 // Set banner background color to black - PLEASE USE HEX STRINGS ONLY
                                 AppLovinMAX.setBannerBackgroundColor(
-                                    _bannerAdUnitId, '#000000');
+                                    _bannerAdUnitId, '#ff0000');
 
                                 _isProgrammaticBannerCreated = true;
                               }
@@ -245,9 +245,38 @@ class _MyAppState extends State<MyApp> {
                   )
                 ],
               ),
+              Expanded(
+                child: ListView(
+                  children: [
+                    Text(
+                      """If not for you, I wouldn’t know
+What true love really meant.
+I’d never feel this inner peace;
+I couldn’t be content.
+
+If not for you, I’d never have
+The pleasures of romance.
+I’d miss the bliss, the craziness,
+Of love’s sweet, silly dance.
+
+I have to feel your tender touch;
+I have to hear your voice;
+No other one could take your place;
+You’re it; I have no choice.
+
+If not for you, I’d be adrift;
+I don’t know what I’d do;
+I’d be searching for my other half,
+Incomplete, if not for you.""",
+                      style: TextStyle(
+                        fontSize: 32,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               if (_isWidgetBannerShowing)
                 Container(
-                  margin: const EdgeInsets.only(top: 100),
                   color: Colors.red,
                   child: MaxAdView(
                       adUnitId: _bannerAdUnitId,
@@ -265,10 +294,10 @@ class _MyAppState extends State<MyApp> {
                       }, onAdCollapsedCallback: (ad) {
                         logStatus('Banner widget ad collapsed');
                       }, onAdRevenuePaidCallback: (ad) {
-                        logStatus('Banner widget ad revenue paid: ${ad.revenue}');
+                        logStatus(
+                            'Banner widget ad revenue paid: ${ad.revenue}');
                       })),
                 ),
-
             ],
           )),
     );
