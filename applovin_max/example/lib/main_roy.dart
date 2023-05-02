@@ -155,101 +155,101 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
-          appBar: AppBar(
-            title: const Text("AppLovin MAX Demo"),
-          ),
-          body: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 20),
-              Text(
-                '$_statusText\n',
-                style: const TextStyle(fontSize: 20),
-                textAlign: TextAlign.center,
-              ),
+        appBar: AppBar(
+          title: const Text("AppLovin MAX Demo"),
+        ),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 20),
+            Text(
+              '$_statusText\n',
+              style: const TextStyle(fontSize: 20),
+              textAlign: TextAlign.center,
+            ),
 
-              //Mediation Debugger
-              ElevatedButton(
-                onPressed: _isInitialized
-                    ? () {
-                        AppLovinMAX.showMediationDebugger();
+            //Mediation Debugger
+            ElevatedButton(
+              onPressed: _isInitialized
+                  ? () {
+                      AppLovinMAX.showMediationDebugger();
+                    }
+                  : null,
+              child: const Text("Mediation Debugger"),
+            ),
+
+            //Interstitial
+            ElevatedButton(
+              onPressed: (_isInitialized &&
+                      _interstitialLoadState != AdLoadState.loading)
+                  ? () async {
+                      bool isReady = (await AppLovinMAX.isInterstitialReady(
+                          _interstitialAdUnitId))!;
+                      if (isReady) {
+                        AppLovinMAX.showInterstitial(_interstitialAdUnitId);
+                      } else {
+                        logStatus('Loading interstitial ad...');
+                        _interstitialLoadState = AdLoadState.loading;
+                        AppLovinMAX.loadInterstitial(_interstitialAdUnitId);
                       }
-                    : null,
-                child: const Text("Mediation Debugger"),
-              ),
+                    }
+                  : null,
+              child: Text(getInterstitialButtonTitle()),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                //Programmatic banner
+                ElevatedButton(
+                  onPressed: (_isInitialized && !_isWidgetBannerShowing)
+                      ? () async {
+                          if (_isProgrammaticBannerShowing) {
+                            AppLovinMAX.hideBanner(_bannerAdUnitId);
+                          } else {
+                            if (!_isProgrammaticBannerCreated) {
+                              //
+                              // Programmatic banner creation - banners are automatically sized to 320x50 on phones and 728x90 on tablets
+                              //
+                              AppLovinMAX.createBanner(
+                                  _bannerAdUnitId, AdViewPosition.bottomCenter);
 
-              //Interstitial
-              ElevatedButton(
-                onPressed: (_isInitialized &&
-                        _interstitialLoadState != AdLoadState.loading)
-                    ? () async {
-                        bool isReady = (await AppLovinMAX.isInterstitialReady(
-                            _interstitialAdUnitId))!;
-                        if (isReady) {
-                          AppLovinMAX.showInterstitial(_interstitialAdUnitId);
-                        } else {
-                          logStatus('Loading interstitial ad...');
-                          _interstitialLoadState = AdLoadState.loading;
-                          AppLovinMAX.loadInterstitial(_interstitialAdUnitId);
-                        }
-                      }
-                    : null,
-                child: Text(getInterstitialButtonTitle()),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  //Programmatic banner
-                  ElevatedButton(
-                    onPressed: (_isInitialized && !_isWidgetBannerShowing)
-                        ? () async {
-                            if (_isProgrammaticBannerShowing) {
-                              AppLovinMAX.hideBanner(_bannerAdUnitId);
-                            } else {
-                              if (!_isProgrammaticBannerCreated) {
-                                //
-                                // Programmatic banner creation - banners are automatically sized to 320x50 on phones and 728x90 on tablets
-                                //
-                                AppLovinMAX.createBanner(_bannerAdUnitId,
-                                    AdViewPosition.bottomCenter);
+                              // Set banner background color to black - PLEASE USE HEX STRINGS ONLY
+                              AppLovinMAX.setBannerBackgroundColor(
+                                  _bannerAdUnitId, '#ff0000');
 
-                                // Set banner background color to black - PLEASE USE HEX STRINGS ONLY
-                                AppLovinMAX.setBannerBackgroundColor(
-                                    _bannerAdUnitId, '#ff0000');
-
-                                _isProgrammaticBannerCreated = true;
-                              }
-
-                              AppLovinMAX.showBanner(_bannerAdUnitId);
+                              _isProgrammaticBannerCreated = true;
                             }
 
-                            setState(() {
-                              _isProgrammaticBannerShowing =
-                                  !_isProgrammaticBannerShowing;
-                            });
+                            AppLovinMAX.showBanner(_bannerAdUnitId);
                           }
-                        : null,
-                    child: Text(getProgrammaticBannerButtonTitle()),
-                  ),
 
-                  //widget banner
-                  ElevatedButton(
-                    onPressed: (_isInitialized && !_isProgrammaticBannerShowing)
-                        ? () async {
-                            setState(() {
-                              _isWidgetBannerShowing = !_isWidgetBannerShowing;
-                            });
-                          }
-                        : null,
-                    child: Text(getWidgetBannerButtonTitle()),
-                  )
-                ],
-              ),
-              Expanded(
-                child: ListView(
-                  children: [
-                    Text(
-                      """If not for you, I wouldn’t know
+                          setState(() {
+                            _isProgrammaticBannerShowing =
+                                !_isProgrammaticBannerShowing;
+                          });
+                        }
+                      : null,
+                  child: Text(getProgrammaticBannerButtonTitle()),
+                ),
+
+                //widget banner
+                ElevatedButton(
+                  onPressed: (_isInitialized && !_isProgrammaticBannerShowing)
+                      ? () async {
+                          setState(() {
+                            _isWidgetBannerShowing = !_isWidgetBannerShowing;
+                          });
+                        }
+                      : null,
+                  child: Text(getWidgetBannerButtonTitle()),
+                )
+              ],
+            ),
+            Expanded(
+              child: ListView(
+                children: [
+                  Text(
+                    """If not for you, I wouldn’t know
 What true love really meant.
 I’d never feel this inner peace;
 I couldn’t be content.
@@ -268,38 +268,38 @@ If not for you, I’d be adrift;
 I don’t know what I’d do;
 I’d be searching for my other half,
 Incomplete, if not for you.""",
-                      style: TextStyle(
-                        fontSize: 32,
-                      ),
+                    style: TextStyle(
+                      fontSize: 32,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              if (_isWidgetBannerShowing)
-                Container(
-                  color: Colors.red,
-                  child: MaxAdView(
-                      adUnitId: _bannerAdUnitId,
-                      adFormat: AdFormat.banner,
-                      listener: AdViewAdListener(onAdLoadedCallback: (ad) {
-                        logStatus(
-                            'Banner widget ad loaded from ${ad.networkName}');
-                      }, onAdLoadFailedCallback: (adUnitId, error) {
-                        logStatus(
-                            'Banner widget ad failed to load with error code ${error.code} and message: ${error.message}');
-                      }, onAdClickedCallback: (ad) {
-                        logStatus('Banner widget ad clicked');
-                      }, onAdExpandedCallback: (ad) {
-                        logStatus('Banner widget ad expanded');
-                      }, onAdCollapsedCallback: (ad) {
-                        logStatus('Banner widget ad collapsed');
-                      }, onAdRevenuePaidCallback: (ad) {
-                        logStatus(
-                            'Banner widget ad revenue paid: ${ad.revenue}');
-                      })),
-                ),
-            ],
-          )),
+            ),
+            if (_isWidgetBannerShowing)
+              Container(
+                color: Colors.red,
+                child: MaxAdView(
+                    adUnitId: _bannerAdUnitId,
+                    adFormat: AdFormat.banner,
+                    listener: AdViewAdListener(onAdLoadedCallback: (ad) {
+                      logStatus(
+                          'Banner widget ad loaded from ${ad.networkName}');
+                    }, onAdLoadFailedCallback: (adUnitId, error) {
+                      logStatus(
+                          'Banner widget ad failed to load with error code ${error.code} and message: ${error.message}');
+                    }, onAdClickedCallback: (ad) {
+                      logStatus('Banner widget ad clicked');
+                    }, onAdExpandedCallback: (ad) {
+                      logStatus('Banner widget ad expanded');
+                    }, onAdCollapsedCallback: (ad) {
+                      logStatus('Banner widget ad collapsed');
+                    }, onAdRevenuePaidCallback: (ad) {
+                      logStatus('Banner widget ad revenue paid: ${ad.revenue}');
+                    })),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
