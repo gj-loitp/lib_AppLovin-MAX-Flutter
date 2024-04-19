@@ -19,13 +19,10 @@ class MyApp extends StatefulWidget {
 }
 
 // Create constants
-const String _sdkKey =
-    "e75FnQfS9XTTqM1Kne69U7PW_MBgAnGQTFvtwVVui6kRPKs5L7ws9twr5IQWwVfzPKZ5pF2IfDa7lguMgGlCyt";
+const String _sdkKey = "e75FnQfS9XTTqM1Kne69U7PW_MBgAnGQTFvtwVVui6kRPKs5L7ws9twr5IQWwVfzPKZ5pF2IfDa7lguMgGlCyt";
 
-final String _interstitialAdUnitId =
-    Platform.isAndroid ? "f4a542a4bda4c5f1" : "IOS_INTER_AD_UNIT_ID";
-final String _bannerAdUnitId =
-    Platform.isAndroid ? "aed1455d708c540e" : "IOS_BANNER_AD_UNIT_ID";
+final String _interstitialAdUnitId = Platform.isAndroid ? "f4a542a4bda4c5f1" : "IOS_INTER_AD_UNIT_ID";
+final String _bannerAdUnitId = Platform.isAndroid ? "aed1455d708c540e" : "IOS_BANNER_AD_UNIT_ID";
 
 // Create states
 var _isInitialized = false;
@@ -48,7 +45,7 @@ class _MyAppState extends State<MyApp> {
   Future<void> initializePlugin() async {
     logStatus("Initializing SDK...");
 
-    Map? configuration = await AppLovinMAX.initialize(_sdkKey);
+    var configuration = await AppLovinMAX.initialize(_sdkKey);
     if (configuration != null) {
       _isInitialized = true;
 
@@ -78,8 +75,7 @@ class _MyAppState extends State<MyApp> {
         _interstitialRetryAttempt = _interstitialRetryAttempt + 1;
 
         int retryDelay = pow(2, min(6, _interstitialRetryAttempt)).toInt();
-        logStatus(
-            'Interstitial ad failed to load with code ${error.code} - retrying in ${retryDelay}s');
+        logStatus('Interstitial ad failed to load with code ${error.code} - retrying in ${retryDelay}s');
 
         Future.delayed(Duration(milliseconds: retryDelay * 1000), () {
           AppLovinMAX.loadInterstitial(_interstitialAdUnitId);
@@ -90,8 +86,7 @@ class _MyAppState extends State<MyApp> {
       },
       onAdDisplayFailedCallback: (ad, error) {
         _interstitialLoadState = AdLoadState.notLoaded;
-        logStatus(
-            'Interstitial ad failed to display with code ${error.code} and message ${error.message}');
+        logStatus('Interstitial ad failed to display with code ${error.code} and message ${error.message}');
       },
       onAdClickedCallback: (ad) {
         logStatus('Interstitial ad clicked');
@@ -109,8 +104,7 @@ class _MyAppState extends State<MyApp> {
     AppLovinMAX.setBannerListener(AdViewAdListener(onAdLoadedCallback: (ad) {
       logStatus('Banner ad loaded from ${ad.networkName}');
     }, onAdLoadFailedCallback: (adUnitId, error) {
-      logStatus(
-          'Banner ad failed to load with error code ${error.code} and message: ${error.message}');
+      logStatus('Banner ad failed to load with error code ${error.code} and message: ${error.message}');
     }, onAdClickedCallback: (ad) {
       logStatus('Banner ad clicked');
     }, onAdExpandedCallback: (ad) {
@@ -133,9 +127,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   String getProgrammaticBannerButtonTitle() {
-    return _isProgrammaticBannerShowing
-        ? 'Hide Programmatic Banner'
-        : 'Show Programmatic Banner';
+    return _isProgrammaticBannerShowing ? 'Hide Programmatic Banner' : 'Show Programmatic Banner';
   }
 
   String getWidgetBannerButtonTitle() {
@@ -180,11 +172,9 @@ class _MyAppState extends State<MyApp> {
 
             //Interstitial
             ElevatedButton(
-              onPressed: (_isInitialized &&
-                      _interstitialLoadState != AdLoadState.loading)
+              onPressed: (_isInitialized && _interstitialLoadState != AdLoadState.loading)
                   ? () async {
-                      bool isReady = (await AppLovinMAX.isInterstitialReady(
-                          _interstitialAdUnitId))!;
+                      bool isReady = (await AppLovinMAX.isInterstitialReady(_interstitialAdUnitId))!;
                       if (isReady) {
                         AppLovinMAX.showInterstitial(_interstitialAdUnitId);
                       } else {
@@ -210,12 +200,10 @@ class _MyAppState extends State<MyApp> {
                               //
                               // Programmatic banner creation - banners are automatically sized to 320x50 on phones and 728x90 on tablets
                               //
-                              AppLovinMAX.createBanner(
-                                  _bannerAdUnitId, AdViewPosition.bottomCenter);
+                              AppLovinMAX.createBanner(_bannerAdUnitId, AdViewPosition.bottomCenter);
 
                               // Set banner background color to black - PLEASE USE HEX STRINGS ONLY
-                              AppLovinMAX.setBannerBackgroundColor(
-                                  _bannerAdUnitId, '#ff0000');
+                              AppLovinMAX.setBannerBackgroundColor(_bannerAdUnitId, '#ff0000');
 
                               _isProgrammaticBannerCreated = true;
                             }
@@ -224,8 +212,7 @@ class _MyAppState extends State<MyApp> {
                           }
 
                           setState(() {
-                            _isProgrammaticBannerShowing =
-                                !_isProgrammaticBannerShowing;
+                            _isProgrammaticBannerShowing = !_isProgrammaticBannerShowing;
                           });
                         }
                       : null,
@@ -282,8 +269,7 @@ Incomplete, if not for you.""",
                     adUnitId: _bannerAdUnitId,
                     adFormat: AdFormat.banner,
                     listener: AdViewAdListener(onAdLoadedCallback: (ad) {
-                      logStatus(
-                          'Banner widget ad loaded from ${ad.networkName}');
+                      logStatus('Banner widget ad loaded from ${ad.networkName}');
                     }, onAdLoadFailedCallback: (adUnitId, error) {
                       logStatus(
                           'Banner widget ad failed to load with error code ${error.code} and message: ${error.message}');
