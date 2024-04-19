@@ -1,5 +1,7 @@
 #import "AppLovinMAX.h"
+#import "AppLovinMAXAdView.h"
 #import "AppLovinMAXAdViewFactory.h"
+#import "AppLovinMAXNativeAdViewFactory.h"
 
 #define ROOT_VIEW_CONTROLLER ([ALUtils topViewControllerFromKeyWindow])
 
@@ -21,11 +23,19 @@
 @property (nonatomic, strong) ALSdkConfiguration *sdkConfiguration;
 
 // Store these values if pub attempts to set it before initializing
+@property (nonatomic, strong, nullable) NSArray<NSString *> *initializationAdUnitIdentifiersToSet;
 @property (nonatomic,   copy, nullable) NSString *userIdentifierToSet;
+@property (nonatomic, strong, nullable) NSNumber *mutedToSet;
 @property (nonatomic, strong, nullable) NSArray<NSString *> *testDeviceIdentifiersToSet;
 @property (nonatomic, strong, nullable) NSNumber *verboseLoggingToSet;
 @property (nonatomic, strong, nullable) NSNumber *creativeDebuggerEnabledToSet;
 @property (nonatomic, strong, nullable) NSNumber *locationCollectionEnabledToSet;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *extraParametersToSet;
+
+@property (nonatomic, strong, nullable) NSNumber *termsAndPrivacyPolicyFlowEnabledToSet;
+@property (nonatomic, strong, nullable) NSURL *privacyPolicyURLToSet;
+@property (nonatomic, strong, nullable) NSURL *termsOfServiceURLToSet;
+@property (nonatomic,   copy, nullable) NSString *debugUserGeographyToSet;
 
 @property (nonatomic, strong, nullable) NSNumber *targetingYearOfBirthToSet;
 @property (nonatomic,   copy, nullable) NSString *targetingGenderToSet;
@@ -56,6 +66,16 @@
 static NSString *const SDK_TAG = @"AppLovinSdk";
 static NSString *const TAG = @"AppLovinMAX";
 
+static NSString *const USER_GEOGRAPHY_GDPR = @"G";
+static NSString *const USER_GEOGRAPHY_OTHER = @"O";
+static NSString *const USER_GEOGRAPHY_UNKNOWN = @"U";
+
+static NSString *const APP_TRACKING_STATUS_NOTDETERMINED = @"N";
+static NSString *const APP_TRACKING_STATUS_RESTRICTED = @"R";
+static NSString *const APP_TRACKING_STATUS_DENIED = @"D";
+static NSString *const APP_TRACKING_STATUS_AUTHORIZED = @"A";
+static NSString *const APP_TRACKING_STATUS_UNAVAILABLE = @"U";
+
 static AppLovinMAX *AppLovinMAXShared;
 
 static FlutterMethodChannel *ALSharedChannel;
@@ -68,6 +88,9 @@ static FlutterMethodChannel *ALSharedChannel;
     
     AppLovinMAXAdViewFactory *adViewFactory = [[AppLovinMAXAdViewFactory alloc] initWithMessenger: [registrar messenger]];
     [registrar registerViewFactory: adViewFactory withId: @"applovin_max/adview"];
+    
+    AppLovinMAXNativeAdViewFactory *nativeAdViewFactory = [[AppLovinMAXNativeAdViewFactory alloc] initWithMessenger: [registrar messenger]];
+    [registrar registerViewFactory: nativeAdViewFactory withId: @"applovin_max/nativeadview"];
 }
 
 + (AppLovinMAX *)shared
@@ -91,7 +114,8 @@ static FlutterMethodChannel *ALSharedChannel;
         self.adViewConstraints = [NSMutableDictionary dictionaryWithCapacity: 2];
         self.adUnitIdentifiersToShowAfterCreate = [NSMutableArray arrayWithCapacity: 2];
         self.disabledAutoRefreshAdViewAdUnitIdentifiers = [NSMutableSet setWithCapacity: 2];
-        
+        self.extraParametersToSet = [NSMutableDictionary dictionaryWithCapacity: 8];
+
         self.safeAreaBackground = [[UIView alloc] init];
         self.safeAreaBackground.hidden = YES;
         self.safeAreaBackground.backgroundColor = UIColor.clearColor;
@@ -146,8 +170,73 @@ static FlutterMethodChannel *ALSharedChannel;
         }
     }
     
+    ALSdkSettings *settings = [[ALSdkSettings alloc] init];
+
+    // Selective init
+    if ( self.initializationAdUnitIdentifiersToSet )
+    {
+        settings.initializationAdUnitIdentifiers = self.initializationAdUnitIdentifiersToSet;
+        self.initializationAdUnitIdentifiersToSet = nil;
+    }
+
+    if ( self.termsAndPrivacyPolicyFlowEnabledToSet )
+    {
+        settings.termsAndPrivacyPolicyFlowSettings.enabled = self.termsAndPrivacyPolicyFlowEnabledToSet.boolValue;
+        self.termsAndPrivacyPolicyFlowEnabledToSet = nil;
+    }
+
+    if ( self.privacyPolicyURLToSet )
+    {
+        settings.termsAndPrivacyPolicyFlowSettings.privacyPolicyURL = self.privacyPolicyURLToSet;
+        self.privacyPolicyURLToSet = nil;
+    }
+
+    if ( self.termsOfServiceURLToSet )
+    {
+        settings.termsAndPrivacyPolicyFlowSettings.termsOfServiceURL = self.termsOfServiceURLToSet;
+        self.termsOfServiceURLToSet = nil;
+    }
+
+    if ( self.debugUserGeographyToSet )
+    {
+        settings.termsAndPrivacyPolicyFlowSettings.debugUserGeography = [self toAppLovinConsentFlowUserGeography: self.debugUserGeographyToSet];
+        self.debugUserGeographyToSet = nil;
+    }
+    
+    if ( self.mutedToSet )
+    {
+        settings.muted = self.mutedToSet;
+        self.mutedToSet = nil;
+    }
+
+    if ( self.testDeviceIdentifiersToSet )
+    {
+        settings.testDeviceAdvertisingIdentifiers = self.testDeviceIdentifiersToSet;
+        self.testDeviceIdentifiersToSet = nil;
+    }
+    
+    if ( self.verboseLoggingToSet )
+    {
+        settings.verboseLoggingEnabled = self.verboseLoggingToSet.boolValue;
+        self.verboseLoggingToSet = nil;
+    }
+    
+    if ( self.creativeDebuggerEnabledToSet )
+    {
+        settings.creativeDebuggerEnabled = self.creativeDebuggerEnabledToSet.boolValue;
+        self.creativeDebuggerEnabledToSet = nil;
+    }
+    
+    if ( self.locationCollectionEnabledToSet )
+    {
+        settings.locationCollectionEnabled = self.locationCollectionEnabledToSet.boolValue;
+        self.locationCollectionEnabledToSet = nil;
+    }
+    
+    [self setPendingExtraParametersIfNeeded: settings];
+
     // Initialize SDK
-    self.sdk = [ALSdk sharedWithKey: sdkKey];
+    self.sdk = [ALSdk sharedWithKey: sdkKey settings: settings];
     [self.sdk setPluginVersion: [@"Flutter-" stringByAppendingString: pluginVersion]];
     [self.sdk setMediationProvider: ALMediationProviderMAX];
     
@@ -155,30 +244,6 @@ static FlutterMethodChannel *ALSharedChannel;
     {
         self.sdk.userIdentifier = self.userIdentifierToSet;
         self.userIdentifierToSet = nil;
-    }
-    
-    if ( self.testDeviceIdentifiersToSet )
-    {
-        self.sdk.settings.testDeviceAdvertisingIdentifiers = self.testDeviceIdentifiersToSet;
-        self.testDeviceIdentifiersToSet = nil;
-    }
-    
-    if ( self.verboseLoggingToSet )
-    {
-        self.sdk.settings.verboseLoggingEnabled = self.verboseLoggingToSet.boolValue;
-        self.verboseLoggingToSet = nil;
-    }
-    
-    if ( self.creativeDebuggerEnabledToSet )
-    {
-        self.sdk.settings.creativeDebuggerEnabled = self.creativeDebuggerEnabledToSet.boolValue;
-        self.creativeDebuggerEnabledToSet = nil;
-    }
-    
-    if ( self.locationCollectionEnabledToSet )
-    {
-        self.sdk.settings.locationCollectionEnabled = self.locationCollectionEnabledToSet.boolValue;
-        self.locationCollectionEnabledToSet = nil;
     }
     
     if ( self.targetingYearOfBirthToSet )
@@ -222,7 +287,7 @@ static FlutterMethodChannel *ALSharedChannel;
         self.sdk.targetingData.interests = self.targetingInterestsToSet;
         self.targetingInterestsToSet = nil;
     }
-    
+
     [self.sdk initializeSdkWithCompletionHandler:^(ALSdkConfiguration *configuration)
      {
         [self log: @"SDK initialized"];
@@ -236,21 +301,20 @@ static FlutterMethodChannel *ALSharedChannel;
 
 - (NSDictionary<NSString *, id> *)initializationMessage
 {
-    NSMutableDictionary<NSString *, id> *message = [NSMutableDictionary dictionaryWithCapacity: 4];
+    NSMutableDictionary<NSString *, id> *message = [NSMutableDictionary dictionaryWithCapacity: 5];
     
     if ( self.sdkConfiguration )
     {
         message[@"consentDialogState"] = @(self.sdkConfiguration.consentDialogState);
         message[@"countryCode"] = self.sdkConfiguration.countryCode;
+        message[@"isTestModeEnabled"] = @(self.sdkConfiguration.isTestModeEnabled);
+        message[@"consentFlowUserGeography"] = [self fromAppLovinConsentFlowUserGeography: self.sdkConfiguration.consentFlowUserGeography];
+        message[@"appTrackingStatus"] = [self fromAppLovinAppTrackingStatus: self.sdkConfiguration.appTrackingTransparencyStatus];
     }
     else
     {
         message[@"consentDialogState"] = @(ALConsentDialogStateUnknown);
     }
-    
-    message[@"hasUserConsent"] = @([ALPrivacySettings hasUserConsent]);
-    message[@"isAgeRestrictedUser"] = @([ALPrivacySettings isAgeRestrictedUser]);
-    message[@"isDoNotSell"] = @([ALPrivacySettings isDoNotSell]);
     
     return message;
 }
@@ -332,9 +396,15 @@ static FlutterMethodChannel *ALSharedChannel;
 
 - (void)setMuted:(BOOL)muted
 {
-    if ( ![self isPluginInitialized] ) return;
-    
-    self.sdk.settings.muted = muted;
+    if ( [self isPluginInitialized] )
+    {
+        self.sdk.settings.muted = muted;
+        self.mutedToSet = nil;
+    }
+    else
+    {
+        self.mutedToSet = @(muted);
+    }
 }
 
 - (void)setVerboseLogging:(BOOL)enabled
@@ -387,6 +457,87 @@ static FlutterMethodChannel *ALSharedChannel;
     {
         self.locationCollectionEnabledToSet = @(enabled);
     }
+}
+
+- (void)setExtraParameter:(NSString *)key value:(NSString *)value
+{
+    if ( ![key al_isValidString] )
+    {
+        [self log: @"[%@] Failed to set extra parameter for nil or empty key: %@", TAG, key];
+        return;
+    }
+
+    if ( self.sdk )
+    {
+        ALSdkSettings *settings = self.sdk.settings;
+        [settings setExtraParameterForKey: key value: ( value != (id) [NSNull null] ) ? value : nil];
+        [self setPendingExtraParametersIfNeeded: settings];
+    }
+    else
+    {
+        self.extraParametersToSet[key] = value;
+    }
+}
+
+- (void)setInitializationAdUnitIds:(NSArray<NSString *> *)adUnitIds
+{
+    self.initializationAdUnitIdentifiersToSet = adUnitIds;
+}
+
+#pragma mark - MAX Terms and Privacy Policy Flow
+
+- (void)setTermsAndPrivacyPolicyFlowEnabled:(BOOL)enabled
+{
+    self.termsAndPrivacyPolicyFlowEnabledToSet = @(enabled);
+}
+
+- (void)setPrivacyPolicyUrl:(NSString *)urlString
+{
+    self.privacyPolicyURLToSet = [NSURL URLWithString: urlString];
+}
+
+- (void)setTermsOfServiceUrl:(NSString *)urlString
+{
+    self.termsOfServiceURLToSet = [NSURL URLWithString: urlString];
+}
+
+- (void)setConsentFlowDebugUserGeography:(NSString *)userGeography
+{
+    self.debugUserGeographyToSet = userGeography;
+}
+
+- (void)showCmpForExistingUser:(FlutterResult)result
+{
+    if ( ![self isPluginInitialized] )
+    {
+        [self logUninitializedAccessError: @"showCmpForExistingUser" withResult: result];
+        return;
+    }
+
+    [self.sdk.cmpService showCMPForExistingUserWithCompletion:^(ALCMPError * _Nullable error) {
+        
+        if ( !error )
+        {
+            result(nil);
+            return;
+        }
+
+        result(@{@"code" : @(error.code),
+                 @"message" : error.message ?: @"",
+                 @"cmpCode" : @(error.cmpCode),
+                 @"cmpMessage" : error.cmpMessage ?: @""});
+    }];
+}
+
+- (void)hasSupportedCmp:(FlutterResult)result
+{
+    if ( ![self isPluginInitialized] )
+    {
+        [self logUninitializedAccessError: @"hasSupportedCmp" withResult: result];
+        return;
+    }
+
+    result(@([self.sdk.cmpService hasSupportedCMP]));
 }
 
 #pragma mark - Data Passing
@@ -543,6 +694,11 @@ static FlutterMethodChannel *ALSharedChannel;
     [self destroyAdViewWithAdUnitIdentifier: adUnitIdentifier adFormat: DEVICE_SPECIFIC_ADVIEW_AD_FORMAT];
 }
 
+- (void)getAdaptiveBannerHeightForWidth:(CGFloat)width andNotify:(FlutterResult)result
+{
+    result(@([DEVICE_SPECIFIC_ADVIEW_AD_FORMAT adaptiveSizeForWidth: width].height));
+}
+
 #pragma mark - MRECs
 
 - (void)createMRecForAdUnitIdentifier:(NSString *)adUnitIdentifier position:(NSString *)position
@@ -558,6 +714,11 @@ static FlutterMethodChannel *ALSharedChannel;
 - (void)updateMRecPositionForAdUnitIdentifier:(NSString *)adUnitIdentifier position:(NSString *)position
 {
     [self updateAdViewPosition: position forAdUnitIdentifier: adUnitIdentifier adFormat: MAAdFormat.mrec];
+}
+
+- (void)setMRecExtraParameterForAdUnitIdentifier:(NSString *)adUnitIdentifier key:(NSString *)key value:(NSString *)value
+{
+    [self setAdViewExtraParameterForAdUnitIdentifier: adUnitIdentifier adFormat: MAAdFormat.mrec key: key value: value];
 }
 
 - (void)showMRecForAdUnitIdentifier:(NSString *)adUnitIdentifier
@@ -676,7 +837,7 @@ static FlutterMethodChannel *ALSharedChannel;
 {
     NSString *name;
     MAAdFormat *adFormat = ad.format;
-    if ( MAAdFormat.banner == adFormat || MAAdFormat.leader == adFormat || MAAdFormat.mrec == adFormat )
+    if ( [adFormat isAdViewAd] )
     {
         MAAdView *adView = [self retrieveAdViewForAdUnitIdentifier: ad.adUnitIdentifier adFormat: adFormat];
         // An ad is now being shown, enable user interaction.
@@ -744,22 +905,7 @@ static FlutterMethodChannel *ALSharedChannel;
         return;
     }
     
-    [self sendErrorEventWithName: name
-             forAdUnitIdentifier: adUnitIdentifier
-                       withError: error
-                         channel: ALSharedChannel];
-}
-
-- (void)sendErrorEventWithName:(NSString *)name
-           forAdUnitIdentifier:(NSString *)adUnitIdentifier
-                     withError:(MAError *)error
-                       channel:(FlutterMethodChannel *)channel
-{
-    NSDictionary *body = @{@"adUnitId": adUnitIdentifier,
-                           @"errorCode" : @(error.code),
-                           @"errorMessage" : error.message,
-                           @"waterfall": [self createAdWaterfallInfo: error.waterfall]};
-    [self sendEventWithName: name body: body channel: channel];
+    [self sendEventWithName: name body: [self adLoadFailedInfoForAdUnitIdentifier: adUnitIdentifier withError: error]];
 }
 
 - (void)didClickAd:(MAAd *)ad
@@ -838,11 +984,7 @@ static FlutterMethodChannel *ALSharedChannel;
         name = @"OnAppOpenAdFailedToDisplayEvent";
     }
     
-    NSMutableDictionary *body = [@{@"errorCode" : @(error.code),
-                                   @"errorMessage" : error.message} mutableCopy];
-    [body addEntriesFromDictionary: [self adInfoForAd: ad]];
-    
-    [self sendEventWithName: name body: body];
+    [self sendEventWithName: name body: [self adDisplayFailedInfoForAd: ad withError: error]];
 }
 
 - (void)didHideAd:(MAAd *)ad
@@ -871,7 +1013,7 @@ static FlutterMethodChannel *ALSharedChannel;
 - (void)didExpandAd:(MAAd *)ad
 {
     MAAdFormat *adFormat = ad.format;
-    if ( adFormat != MAAdFormat.banner && adFormat != MAAdFormat.leader && adFormat != MAAdFormat.mrec )
+    if ( ![adFormat isAdViewAd] )
     {
         [self logInvalidAdFormat: adFormat];
         return;
@@ -884,7 +1026,7 @@ static FlutterMethodChannel *ALSharedChannel;
 - (void)didCollapseAd:(MAAd *)ad
 {
     MAAdFormat *adFormat = ad.format;
-    if ( adFormat != MAAdFormat.banner && adFormat != MAAdFormat.leader && adFormat != MAAdFormat.mrec )
+    if ( ![adFormat isAdViewAd] )
     {
         [self logInvalidAdFormat: adFormat];
         return;
@@ -1144,6 +1286,19 @@ static FlutterMethodChannel *ALSharedChannel;
     [self.adViewAdFormats removeObjectForKey: adUnitIdentifier];
 }
 
+- (void)setPendingExtraParametersIfNeeded:(ALSdkSettings *)settings
+{
+    if ( self.extraParametersToSet.count <= 0 ) return;
+    
+    for ( NSString *key in self.extraParametersToSet )
+    {
+        NSString *value = self.extraParametersToSet[key];
+        [settings setExtraParameterForKey: key value: ( value != (id) [NSNull null] ) ? value : nil];
+    }
+    
+    [self.extraParametersToSet removeAllObjects];
+}
+
 - (void)logInvalidAdFormat:(MAAdFormat *)adFormat
 {
     [self log: @"invalid ad format: %@, from %@", adFormat, [NSThread callStackSymbols]];
@@ -1151,7 +1306,20 @@ static FlutterMethodChannel *ALSharedChannel;
 
 - (void)logUninitializedAccessError:(NSString *)callingMethod
 {
-    [self log: @"ERROR: Failed to execute %@() - please ensure the AppLovin Flutter Native module has been initialized by calling 'AppLovinMAX.initialize(...);'!", callingMethod];
+    [self logUninitializedAccessError: callingMethod withResult: nil];
+}
+
+- (void)logUninitializedAccessError:(NSString *)callingMethod withResult:(nullable FlutterResult)result
+{
+    NSString *message = [NSString stringWithFormat:@"ERROR: Failed to execute %@() - please ensure the AppLovin MAX React Native module has been initialized by calling 'AppLovinMAX.initialize(...);'!", callingMethod];
+
+    if ( !result )
+    {
+        NSLog(@"[%@] [%@] %@", SDK_TAG, TAG, message);
+        return;
+    }
+
+    result([FlutterError errorWithCode: TAG message: message details: nil]);
 }
 
 - (void)log:(NSString *)format, ...
@@ -1174,6 +1342,7 @@ static FlutterMethodChannel *ALSharedChannel;
     NSLog(@"[%@] [%@] %@", SDK_TAG, TAG, message);
 }
 
+// NOTE: Do not update signature as some integrations depend on it via Objective-C runtime
 - (MAInterstitialAd *)retrieveInterstitialForAdUnitIdentifier:(NSString *)adUnitIdentifier
 {
     MAInterstitialAd *result = self.interstitials[adUnitIdentifier];
@@ -1188,6 +1357,7 @@ static FlutterMethodChannel *ALSharedChannel;
     return result;
 }
 
+// NOTE: Do not update signature as some integrations depend on it via Objective-C runtime
 - (MARewardedAd *)retrieveRewardedAdForAdUnitIdentifier:(NSString *)adUnitIdentifier
 {
     MARewardedAd *result = self.rewardedAds[adUnitIdentifier];
@@ -1202,6 +1372,7 @@ static FlutterMethodChannel *ALSharedChannel;
     return result;
 }
 
+// NOTE: Do not update signature as some integrations depend on it via Objective-C runtime
 - (MAAppOpenAd *)retrieveAppOpenAdForAdUnitIdentifier:(NSString *)adUnitIdentifier
 {
     MAAppOpenAd *result = self.appOpenAds[adUnitIdentifier];
@@ -1216,6 +1387,7 @@ static FlutterMethodChannel *ALSharedChannel;
     return result;
 }
 
+// NOTE: Do not update signature as some integrations depend on it via Objective-C runtime
 - (MAAdView *)retrieveAdViewForAdUnitIdentifier:(NSString *)adUnitIdentifier adFormat:(MAAdFormat *)adFormat
 {
     return [self retrieveAdViewForAdUnitIdentifier: adUnitIdentifier adFormat: adFormat atPosition: nil];
@@ -1278,22 +1450,14 @@ static FlutterMethodChannel *ALSharedChannel;
     
     // Deactivate any previous constraints and reset visibility state so that the safe area background can be positioned again.
     [NSLayoutConstraint deactivateConstraints: self.safeAreaBackground.constraints];
-    self.safeAreaBackground.hidden = NO;
+    self.safeAreaBackground.hidden = adView.hidden;
     
     CGSize adViewSize = [[self class] adViewSizeForAdFormat: adFormat];
     
     // All positions have constant height
     NSMutableArray<NSLayoutConstraint *> *constraints = [NSMutableArray arrayWithObject: [adView.heightAnchor constraintEqualToConstant: adViewSize.height]];
     
-    UILayoutGuide *layoutGuide;
-    if ( @available(iOS 11.0, *) )
-    {
-        layoutGuide = superview.safeAreaLayoutGuide;
-    }
-    else
-    {
-        layoutGuide = superview.layoutMarginsGuide;
-    }
+    UILayoutGuide *layoutGuide = superview.safeAreaLayoutGuide;
     
     // If top of bottom center, stretch width of screen
     if ( [adViewPosition isEqual: @"top_center"] || [adViewPosition isEqual: @"bottom_center"] )
@@ -1409,8 +1573,29 @@ static FlutterMethodChannel *ALSharedChannel;
              @"networkName" : ad.networkName,
              @"placement" : ad.placement ?: @"",
              @"revenue" : @(ad.revenue),
+             @"revenuePrecision" : ad.revenuePrecision,
              @"dspName" : ad.DSPName ?: @"",
              @"waterfall": [self createAdWaterfallInfo: ad.waterfall]};
+}
+
+- (NSDictionary<NSString *, id> *)adLoadFailedInfoForAdUnitIdentifier:(NSString *)adUnitIdentifier withError:(MAError *)error
+{
+    return ( error ) ?
+    @{@"adUnitId": adUnitIdentifier,
+      @"code" : @(error.code),
+      @"message" : error.message,
+      @"waterfall": [self createAdWaterfallInfo: error.waterfall]}
+    :
+    @{@"adUnitId": adUnitIdentifier,
+      @"code" : @(MAErrorCodeUnspecified)};
+}
+
+- (NSDictionary<NSString *, id> *)adDisplayFailedInfoForAd:(MAAd *)ad withError:(MAError *)error
+{
+    return @{
+        @"ad" : [self adInfoForAd: ad],
+        @"error" : [self adLoadFailedInfoForAdUnitIdentifier: ad.adUnitIdentifier withError: error]
+    };
 }
 
 - (NSDictionary<NSString *, id> *)createAdWaterfallInfo:(MAAdWaterfallInfo *)waterfallInfo
@@ -1458,11 +1643,7 @@ static FlutterMethodChannel *ALSharedChannel;
     MAError *error = response.error;
     if ( error )
     {
-        NSMutableDictionary<NSString *, id> *errorObject = [NSMutableDictionary dictionary];
-        errorObject[@"message"] = error.message;
-        errorObject[@"code"] = @(error.code);
-        
-        networkResponseDict[@"error"] = errorObject;
+        networkResponseDict[@"error"] = [self adLoadFailedInfoForAdUnitIdentifier: @"" withError: error];
     }
     
     // Convert latency from seconds to milliseconds to match Android.
@@ -1471,6 +1652,96 @@ static FlutterMethodChannel *ALSharedChannel;
     
     return networkResponseDict;
 }
+
+#pragma mark - Amazon
+
+- (void)setAmazonResult:(id)result forBannerAdUnitIdentifier:(NSString *)adUnitIdentifier
+{
+    [self setAmazonResult: result forAdUnitIdentifier: adUnitIdentifier adFormat: MAAdFormat.banner];
+}
+
+- (void)setAmazonResult:(id)result forMRecAdUnitIdentifier:(NSString *)adUnitIdentifier
+{
+    [self setAmazonResult: result forAdUnitIdentifier: adUnitIdentifier adFormat: MAAdFormat.mrec];
+}
+
+- (void)setAmazonResult:(id)result forInterstitialAdUnitIdentifier:(NSString *)adUnitIdentifier
+{
+    [self setAmazonResult: result forAdUnitIdentifier: adUnitIdentifier adFormat: MAAdFormat.interstitial];
+}
+
+- (void)setAmazonResult:(id)result forRewardedAdUnitIdentifier:(NSString *)adUnitIdentifier
+{
+    [self setAmazonResult: result forAdUnitIdentifier: adUnitIdentifier adFormat: MAAdFormat.rewarded];
+}
+
+- (void)setAmazonResult:(id /* DTBAdResponse or DTBAdErrorInfo */)result forAdUnitIdentifier:(NSString *)adUnitIdentifier adFormat:(MAAdFormat *)adFormat
+{
+    if ( !self.sdk )
+    {
+        NSString *errorMessage = [NSString stringWithFormat: @"Failed to set Amazon result - SDK not initialized: %@", adUnitIdentifier];
+        [self logUninitializedAccessError: errorMessage];
+        
+        return;
+    }
+    
+    if ( !result )
+    {
+        [self log: @"Failed to set Amazon result - nil value"];
+        return;
+    }
+    
+    NSString *key = [self localExtraParameterKeyForAmazonResult: result];
+    
+    if ( adFormat == MAAdFormat.interstitial )
+    {
+        MAInterstitialAd *interstitial = [self retrieveInterstitialForAdUnitIdentifier: adUnitIdentifier];
+        if ( !interstitial )
+        {
+            [self log: @"Failed to set Amazon result - unable to find interstitial"];
+            return;
+        }
+
+        [interstitial setLocalExtraParameterForKey: key value: result];
+    }
+    else if ( adFormat == MAAdFormat.rewarded )
+    {
+        MARewardedAd *rewardedAd = [self retrieveRewardedAdForAdUnitIdentifier: adUnitIdentifier];
+        if ( !rewardedAd )
+        {
+            [self log: @"Failed to set Amazon result - unable to find rewarded ad"];
+            return;
+        }
+
+        [rewardedAd setLocalExtraParameterForKey: key value: result];
+    }
+    else // MAAdFormat.banner or MAAdFormat.mrec
+    {
+        MAAdView *adView = [AppLovinMAXAdView sharedWithAdUnitIdentifier: adUnitIdentifier];
+
+        if ( !adView )
+        {
+            adView = [self retrieveAdViewForAdUnitIdentifier: adUnitIdentifier adFormat: adFormat];
+        }
+        
+        if ( adView )
+        {
+            [adView setLocalExtraParameterForKey: key value: result];
+        }
+        else
+        {
+            [self log: @"Failed to set Amazon result - unable to find %@", adFormat];
+        }
+    }
+}
+
+- (NSString *)localExtraParameterKeyForAmazonResult:(id /* DTBAdResponse or DTBAdErrorInfo */)result
+{
+    NSString *className = NSStringFromClass([result class]);
+    return [@"DTBAdResponse" isEqualToString: className] ? @"amazon_ad_response" : @"amazon_ad_error";
+}
+
+#pragma mark - Utility Methods
 
 - (ALGender)toAppLovinGender:(nullable NSString *)gender
 {
@@ -1514,6 +1785,56 @@ static FlutterMethodChannel *ALSharedChannel;
     }
     
     return ALAdContentRatingNone;
+}
+
+- (ALConsentFlowUserGeography)toAppLovinConsentFlowUserGeography:(NSString *)userGeography
+{
+    if ( [USER_GEOGRAPHY_GDPR al_isEqualToStringIgnoringCase: userGeography] )
+    {
+        return ALConsentFlowUserGeographyGDPR;
+    }
+    else if ( [USER_GEOGRAPHY_OTHER al_isEqualToStringIgnoringCase: userGeography] )
+    {
+        return ALConsentFlowUserGeographyOther;
+    }
+
+    return ALConsentFlowUserGeographyUnknown;
+}
+
+- (NSString *)fromAppLovinConsentFlowUserGeography:(ALConsentFlowUserGeography)userGeography
+{
+    if ( ALConsentFlowUserGeographyGDPR == userGeography )
+    {
+        return USER_GEOGRAPHY_GDPR;
+    }
+    else if ( ALConsentFlowUserGeographyOther == userGeography )
+    {
+        return USER_GEOGRAPHY_OTHER;
+    }
+
+    return USER_GEOGRAPHY_UNKNOWN;
+}
+
+- (NSString *)fromAppLovinAppTrackingStatus:(ALAppTrackingTransparencyStatus)status
+{
+    if ( ALAppTrackingTransparencyStatusNotDetermined == status )
+    {
+        return APP_TRACKING_STATUS_NOTDETERMINED;
+    }
+    else if ( ALAppTrackingTransparencyStatusRestricted == status )
+    {
+        return APP_TRACKING_STATUS_RESTRICTED;
+    }
+    else if ( ALAppTrackingTransparencyStatusDenied == status )
+    {
+        return APP_TRACKING_STATUS_DENIED;
+    }
+    else if ( ALAppTrackingTransparencyStatusAuthorized == status )
+    {
+        return APP_TRACKING_STATUS_AUTHORIZED;
+    }
+
+    return APP_TRACKING_STATUS_UNAVAILABLE;
 }
 
 #pragma mark - Flutter Event Channel
@@ -1634,6 +1955,57 @@ static FlutterMethodChannel *ALSharedChannel;
         
         result(nil);
     }
+    else if ( [@"setExtraParameter" isEqualToString: call.method] )
+    {
+        NSString *key = call.arguments[@"key"];
+        NSString *value = call.arguments[@"value"];
+        [self setExtraParameter: key value: value];
+        
+        result(nil);
+    }
+    else if ( [@"setInitializationAdUnitIds" isEqualToString: call.method] )
+    {
+        NSArray<NSString *> *adUnitIds = call.arguments[@"value"];
+        [self setInitializationAdUnitIds: adUnitIds];
+        
+        result(nil);
+    }
+    else if ( [@"setTermsAndPrivacyPolicyFlowEnabled" isEqualToString: call.method] )
+    {
+        BOOL isConsentFlowEnabled = ((NSNumber *)call.arguments[@"value"]).boolValue;
+        [self setTermsAndPrivacyPolicyFlowEnabled: isConsentFlowEnabled];
+        
+        result(nil);
+    }
+    else if ( [@"setPrivacyPolicyUrl" isEqualToString: call.method] )
+    {
+        NSString *privacyPolicyUrl = call.arguments[@"value"];
+        [self setPrivacyPolicyUrl: privacyPolicyUrl];
+        
+        result(nil);
+    }
+    else if ( [@"setTermsOfServiceUrl" isEqualToString: call.method] )
+    {
+        NSString *termsOfServiceUrl = call.arguments[@"value"];
+        [self setTermsOfServiceUrl: termsOfServiceUrl];
+        
+        result(nil);
+    }
+    else if ( [@"setConsentFlowDebugUserGeography" isEqualToString: call.method] )
+    {
+        NSString *debugUserGeography = call.arguments[@"value"];
+        [self setConsentFlowDebugUserGeography: debugUserGeography];
+        
+        result(nil);
+    }
+    else if ( [@"showCmpForExistingUser" isEqualToString: call.method] )
+    {
+        [self showCmpForExistingUser: result];
+    }
+    else if ( [@"hasSupportedCmp" isEqualToString: call.method] )
+    {
+        [self hasSupportedCmp: result];
+    }
     else if ( [@"createBanner" isEqualToString: call.method] )
     {
         NSString *adUnitId = call.arguments[@"ad_unit_id"];
@@ -1720,6 +2092,11 @@ static FlutterMethodChannel *ALSharedChannel;
         
         result(nil);
     }
+    else if ( [@"getAdaptiveBannerHeightForWidth" isEqualToString: call.method] )
+    {
+        NSNumber *width = call.arguments[@"width"];
+        [self getAdaptiveBannerHeightForWidth: [width doubleValue] andNotify: result];
+    }
     else if ( [@"createMRec" isEqualToString: call.method] )
     {
         NSString *adUnitId = call.arguments[@"ad_unit_id"];
@@ -1744,6 +2121,15 @@ static FlutterMethodChannel *ALSharedChannel;
         NSString *adUnitId = call.arguments[@"ad_unit_id"];
         NSString *position = call.arguments[@"position"];
         [self updateMRecPositionForAdUnitIdentifier: adUnitId position: position];
+        
+        result(nil);
+    }
+    else if ( [@"setMRecExtraParameter" isEqualToString: call.method] )
+    {
+        NSString *adUnitId = call.arguments[@"ad_unit_id"];
+        NSString *key = call.arguments[@"key"];
+        NSString *value = call.arguments[@"value"];
+        [self setMRecExtraParameterForAdUnitIdentifier: adUnitId key: key value: value];
         
         result(nil);
     }

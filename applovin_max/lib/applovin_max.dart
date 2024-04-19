@@ -8,12 +8,13 @@ export 'package:applovin_max/src/ad_classes.dart';
 export 'package:applovin_max/src/ad_listeners.dart';
 export 'package:applovin_max/src/enums.dart';
 export 'package:applovin_max/src/max_ad_view.dart';
+export 'package:applovin_max/src/max_native_ad_view.dart';
 export 'package:applovin_max/src/targeting_data.dart';
 
 /// Represents the AppLovin SDK.
 class AppLovinMAX {
   /// The current version of the SDK.
-  static const version = "2.5.0";
+  static const version = "3.9.2";
 
   /// @nodoc
   static MethodChannel channel = const MethodChannel('applovin_max');
@@ -35,124 +36,112 @@ class AppLovinMAX {
   /// Initializes the SDK.
   ///
   /// [Initialize the SDK](https://dash.applovin.com/documentation/mediation/flutter/getting-started/integration#initialize-the-sdk)
-  static Future<Map?> initialize(String sdkKey) {
+  static Future<MaxConfiguration?> initialize(String sdkKey) async {
     channel.setMethodCallHandler((MethodCall call) async {
       var method = call.method;
       var arguments = call.arguments;
 
-      var adUnitId = arguments["adUnitId"];
-
       /// Banner Ad Events
       if ("OnBannerAdLoadedEvent" == method) {
-        _bannerAdListener?.onAdLoadedCallback(createAd(adUnitId, arguments));
+        _bannerAdListener?.onAdLoadedCallback(createAd(arguments));
       } else if ("OnBannerAdLoadFailedEvent" == method) {
-        _bannerAdListener?.onAdLoadFailedCallback(adUnitId, createError(arguments));
+        _bannerAdListener?.onAdLoadFailedCallback(arguments["adUnitId"], createError(arguments));
       } else if ("OnBannerAdClickedEvent" == method) {
-        _bannerAdListener?.onAdClickedCallback(createAd(adUnitId, arguments));
+        _bannerAdListener?.onAdClickedCallback(createAd(arguments));
       } else if ("OnBannerAdExpandedEvent" == method) {
-        _bannerAdListener?.onAdExpandedCallback(createAd(adUnitId, arguments));
+        _bannerAdListener?.onAdExpandedCallback(createAd(arguments));
       } else if ("OnBannerAdCollapsedEvent" == method) {
-        _bannerAdListener?.onAdCollapsedCallback(createAd(adUnitId, arguments));
+        _bannerAdListener?.onAdCollapsedCallback(createAd(arguments));
       } else if ("OnBannerAdRevenuePaid" == method) {
-        _bannerAdListener?.onAdRevenuePaidCallback?.call(createAd(adUnitId, arguments));
+        _bannerAdListener?.onAdRevenuePaidCallback?.call(createAd(arguments));
       }
 
       /// MREC Ad Events
       else if ("OnMRecAdLoadedEvent" == method) {
-        _mrecAdListener?.onAdLoadedCallback(createAd(adUnitId, arguments));
+        _mrecAdListener?.onAdLoadedCallback(createAd(arguments));
       } else if ("OnMRecAdLoadFailedEvent" == method) {
-        _mrecAdListener?.onAdLoadFailedCallback(adUnitId, createError(arguments));
+        _mrecAdListener?.onAdLoadFailedCallback(arguments["adUnitId"], createError(arguments));
       } else if ("OnMRecAdClickedEvent" == method) {
-        _mrecAdListener?.onAdClickedCallback(createAd(adUnitId, arguments));
+        _mrecAdListener?.onAdClickedCallback(createAd(arguments));
       } else if ("OnMRecAdExpandedEvent" == method) {
-        _mrecAdListener?.onAdExpandedCallback(createAd(adUnitId, arguments));
+        _mrecAdListener?.onAdExpandedCallback(createAd(arguments));
       } else if ("OnMRecAdCollapsedEvent" == method) {
-        _mrecAdListener?.onAdCollapsedCallback(createAd(adUnitId, arguments));
+        _mrecAdListener?.onAdCollapsedCallback(createAd(arguments));
       } else if ("OnMRecAdRevenuePaid" == method) {
-        _mrecAdListener?.onAdRevenuePaidCallback?.call(createAd(adUnitId, arguments));
+        _mrecAdListener?.onAdRevenuePaidCallback?.call(createAd(arguments));
       }
 
       /// Interstitial Ad Events
       else if ("OnInterstitialLoadedEvent" == method) {
-        _interstitialListener?.onAdLoadedCallback.call(createAd(adUnitId, arguments));
+        _interstitialListener?.onAdLoadedCallback.call(createAd(arguments));
       } else if ("OnInterstitialLoadFailedEvent" == method) {
-        _interstitialListener?.onAdLoadFailedCallback(adUnitId, createError(arguments));
+        _interstitialListener?.onAdLoadFailedCallback(arguments["adUnitId"], createError(arguments));
       } else if ("OnInterstitialClickedEvent" == method) {
-        _interstitialListener?.onAdClickedCallback.call(createAd(adUnitId, arguments));
+        _interstitialListener?.onAdClickedCallback.call(createAd(arguments));
       } else if ("OnInterstitialDisplayedEvent" == method) {
-        _interstitialListener?.onAdDisplayedCallback.call(createAd(adUnitId, arguments));
+        _interstitialListener?.onAdDisplayedCallback.call(createAd(arguments));
       } else if ("OnInterstitialAdFailedToDisplayEvent" == method) {
-        _interstitialListener?.onAdDisplayFailedCallback(createAd(adUnitId, arguments), createError(arguments));
+        _interstitialListener?.onAdDisplayFailedCallback(createAd(arguments["ad"]), createError(arguments["error"]));
       } else if ("OnInterstitialHiddenEvent" == method) {
-        _interstitialListener?.onAdHiddenCallback.call(createAd(adUnitId, arguments));
+        _interstitialListener?.onAdHiddenCallback.call(createAd(arguments));
       } else if ("OnInterstitialAdRevenuePaid" == method) {
-        _interstitialListener?.onAdRevenuePaidCallback?.call(createAd(adUnitId, arguments));
+        _interstitialListener?.onAdRevenuePaidCallback?.call(createAd(arguments));
       }
 
       /// Rewarded Ad Events
       else if ("OnRewardedAdLoadedEvent" == method) {
-        _rewardedAdListener?.onAdLoadedCallback.call(createAd(adUnitId, arguments));
+        _rewardedAdListener?.onAdLoadedCallback.call(createAd(arguments));
       } else if ("OnRewardedAdLoadFailedEvent" == method) {
-        _rewardedAdListener?.onAdLoadFailedCallback(adUnitId, createError(arguments));
+        _rewardedAdListener?.onAdLoadFailedCallback(arguments["adUnitId"], createError(arguments));
       } else if ("OnRewardedAdClickedEvent" == method) {
-        _rewardedAdListener?.onAdClickedCallback.call(createAd(adUnitId, arguments));
+        _rewardedAdListener?.onAdClickedCallback.call(createAd(arguments));
       } else if ("OnRewardedAdDisplayedEvent" == method) {
-        _rewardedAdListener?.onAdDisplayedCallback.call(createAd(adUnitId, arguments));
+        _rewardedAdListener?.onAdDisplayedCallback.call(createAd(arguments));
       } else if ("OnRewardedAdFailedToDisplayEvent" == method) {
-        _rewardedAdListener?.onAdDisplayFailedCallback(createAd(adUnitId, arguments), createError(arguments));
+        _rewardedAdListener?.onAdDisplayFailedCallback(createAd(arguments["ad"]), createError(arguments["error"]));
       } else if ("OnRewardedAdHiddenEvent" == method) {
-        _rewardedAdListener?.onAdHiddenCallback.call(createAd(adUnitId, arguments));
+        _rewardedAdListener?.onAdHiddenCallback.call(createAd(arguments));
       } else if ("OnRewardedAdReceivedRewardEvent" == method) {
         var reward = MaxReward(arguments["rewardAmount"], arguments["rewardLabel"]);
-        _rewardedAdListener?.onAdReceivedRewardCallback(createAd(adUnitId, arguments), reward);
+        _rewardedAdListener?.onAdReceivedRewardCallback(createAd(arguments), reward);
       } else if ("OnRewardedAdRevenuePaid" == method) {
-        _rewardedAdListener?.onAdRevenuePaidCallback?.call(createAd(adUnitId, arguments));
+        _rewardedAdListener?.onAdRevenuePaidCallback?.call(createAd(arguments));
       }
 
       /// App Open Ad Events
       else if ("OnAppOpenAdLoadedEvent" == method) {
-        _appOpenAdListener?.onAdLoadedCallback.call(createAd(adUnitId, arguments));
+        _appOpenAdListener?.onAdLoadedCallback.call(createAd(arguments));
       } else if ("OnAppOpenAdLoadFailedEvent" == method) {
-        _appOpenAdListener?.onAdLoadFailedCallback(adUnitId, createError(arguments));
+        _appOpenAdListener?.onAdLoadFailedCallback(arguments["adUnitId"], createError(arguments));
       } else if ("OnAppOpenAdClickedEvent" == method) {
-        _appOpenAdListener?.onAdClickedCallback.call(createAd(adUnitId, arguments));
+        _appOpenAdListener?.onAdClickedCallback.call(createAd(arguments));
       } else if ("OnAppOpenAdDisplayedEvent" == method) {
-        _appOpenAdListener?.onAdDisplayedCallback.call(createAd(adUnitId, arguments));
+        _appOpenAdListener?.onAdDisplayedCallback.call(createAd(arguments));
       } else if ("OnAppOpenAdFailedToDisplayEvent" == method) {
-        _appOpenAdListener?.onAdDisplayFailedCallback(createAd(adUnitId, arguments), createError(arguments));
+        _appOpenAdListener?.onAdDisplayFailedCallback(createAd(arguments["ad"]), createError(arguments["error"]));
       } else if ("OnAppOpenAdHiddenEvent" == method) {
-        _appOpenAdListener?.onAdHiddenCallback.call(createAd(adUnitId, arguments));
+        _appOpenAdListener?.onAdHiddenCallback.call(createAd(arguments));
       } else if ("OnAppOpenAdRevenuePaid" == method) {
-        _appOpenAdListener?.onAdRevenuePaidCallback?.call(createAd(adUnitId, arguments));
+        _appOpenAdListener?.onAdRevenuePaidCallback?.call(createAd(arguments));
       }
     });
 
-    return channel.invokeMethod('initialize', {
+    var conf = await channel.invokeMethod('initialize', {
       'plugin_version': version,
       'sdk_key': sdkKey,
-    });
+    }) as Map;
+
+    return MaxConfiguration.fromJson(Map<String, dynamic>.from(conf));
   }
 
   /// @nodoc
-  static MaxAd createAd(String adUnitId, dynamic arguments) {
-    return MaxAd(
-      adUnitId,
-      arguments["networkName"],
-      arguments["revenue"],
-      arguments["creativeId"],
-      arguments["dspName"],
-      arguments["placement"],
-      Map<String, dynamic>.from(arguments["waterfall"]),
-    );
+  static MaxAd createAd(dynamic arguments) {
+    return MaxAd.fromJson(Map<String, dynamic>.from(arguments));
   }
 
   /// @nodoc
   static MaxError createError(dynamic arguments) {
-    return MaxError(
-      arguments["errorCode"],
-      arguments["errorMessage"],
-      Map<String, dynamic>.from(arguments["waterfall"]),
-    );
+    return MaxError.fromJson(Map<String, dynamic>.from(arguments));
   }
 
   /// Checks if the SDK has fully been initialized without errors.
@@ -181,6 +170,7 @@ class AppLovinMAX {
   /// To learn more about how this information is encoded in the integer, see [ConsentDialogState].
   ///
   /// [Consent Flags in GDPR and Other Regions](https://dash.applovin.com/documentation/mediation/flutter/getting-started/privacy#consent-flags-in-gdpr-and-other-regions)
+  @Deprecated('Check consentFlowUserGeography in the return object of initialize() instead.')
   static Future<int?> getConsentDialogState() {
     return channel.invokeMethod('getConsentDialogState');
   }
@@ -281,7 +271,9 @@ class AppLovinMAX {
     });
   }
 
-  /// @nodoc
+  /// Enables devices to receive test ads by passing in the advertising identifier (IDFA or IDFV) of
+  /// each test device. Refer to AppLovin logs for the IDFA or IDFV of your current device.
+  ///
   static void setTestDeviceAdvertisingIds(List advertisingIdentifiers) {
     channel.invokeMethod('setTestDeviceAdvertisingIds', {
       'value': advertisingIdentifiers,
@@ -295,6 +287,69 @@ class AppLovinMAX {
     channel.invokeMethod('setLocationCollectionEnabled', {
       'value': enabled,
     });
+  }
+
+  /// Sets an extra parameter to pass to the AppLovin server.
+  static void setExtraParameter(String key, String? value) {
+    channel.invokeMethod('setExtraParameter', {
+      'key': key,
+      'value': value,
+    });
+  }
+
+  /// Sets a list of the ad units for the SDK to initialize only those networks.
+  /// Should be set before initializing the SDK.
+  static void setInitializationAdUnitIds(List adUnitIds) {
+    channel.invokeMethod('setInitializationAdUnitIds', {
+      'value': adUnitIds,
+    });
+  }
+
+  /// Enables the MAX Terms and Privacy Policy Flow.
+  static void setTermsAndPrivacyPolicyFlowEnabled(bool enabled) {
+    channel.invokeMethod('setTermsAndPrivacyPolicyFlowEnabled', {
+      'value': enabled,
+    });
+  }
+
+  /// The URL of your company’s privacy policy, as a string. This is required in
+  /// order to enable the Terms Flow.
+  static void setPrivacyPolicyUrl(String urlString) {
+    channel.invokeMethod('setPrivacyPolicyUrl', {
+      'value': urlString,
+    });
+  }
+
+  /// The URL of your company’s terms of service, as a string. This is optional;
+  /// you can enable the Terms Flow with or without it.
+  static void setTermsOfServiceUrl(String urlString) {
+    channel.invokeMethod('setTermsOfServiceUrl', {
+      'value': urlString,
+    });
+  }
+
+  /// Set debug user geography. You may use this to test CMP flow by setting
+  /// this to [ConsentFlowUserGeography.GDPR].
+  static void setConsentFlowDebugUserGeography(ConsentFlowUserGeography userGeography) {
+    channel.invokeMethod('setConsentFlowDebugUserGeography', {
+      'value': userGeography.value,
+    });
+  }
+
+  /// Shows the CMP flow to an existing user.
+  /// Note that this resets the user’s existing consent information.
+  ///
+  /// The function returns when the flow finishes showing. On success, returns
+  /// null. On failure, returns [MaxCMPError].
+  static Future<MaxCMPError?> showCmpForExistingUser() async {
+    Map? error = await channel.invokeMethod('showCmpForExistingUser') as Map?;
+    if (error == null) return null;
+    return MaxCMPError.fromJson(Map<String, dynamic>.from(error));
+  }
+
+  /// Returns true if a supported CMP SDK is detected.
+  static Future<bool?> hasSupportedCmp() {
+    return channel.invokeMethod('hasSupportedCmp');
   }
 
   //
@@ -406,6 +461,13 @@ class AppLovinMAX {
     });
   }
 
+  /// Gets the adaptive banner size for the provided width.
+  static Future<double?> getAdaptiveBannerHeightForWidth(double width) {
+    return channel.invokeMethod('getAdaptiveBannerHeightForWidth', {
+      'width': width,
+    });
+  }
+
   //
   // MRECs
   //
@@ -440,6 +502,15 @@ class AppLovinMAX {
     channel.invokeMethod('updateMRecPosition', {
       'ad_unit_id': adUnitId,
       'position': position.value,
+    });
+  }
+
+  /// Sets an extra parameter to the MREC with the specified [adUnitId].
+  static void setMRecExtraParameter(String adUnitId, String key, String value) {
+    channel.invokeMethod('setMRecExtraParameter', {
+      'ad_unit_id': adUnitId,
+      'key': key,
+      'value': value,
     });
   }
 

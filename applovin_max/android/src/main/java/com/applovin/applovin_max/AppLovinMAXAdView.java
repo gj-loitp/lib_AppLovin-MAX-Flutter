@@ -11,6 +11,9 @@ import com.applovin.mediation.MaxError;
 import com.applovin.mediation.ads.MaxAdView;
 import com.applovin.sdk.AppLovinSdk;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import io.flutter.plugin.common.BinaryMessenger;
@@ -24,8 +27,15 @@ import io.flutter.plugin.platform.PlatformView;
 public class AppLovinMAXAdView
         implements PlatformView, MaxAdViewAdListener, MaxAdRevenueListener
 {
+    private static final Map<String, MaxAdView> adViewInstances = new HashMap<>( 2 );
+
     private final MethodChannel channel;
     private final MaxAdView     adView;
+
+    public static MaxAdView getInstance(final String adUnitId)
+    {
+        return adViewInstances.get( adUnitId );
+    }
 
     public AppLovinMAXAdView(final int viewId,
                              final String adUnitId,
@@ -33,6 +43,8 @@ public class AppLovinMAXAdView
                              final boolean isAutoRefreshEnabled,
                              @Nullable final String placement,
                              @Nullable final String customData,
+                             @Nullable final Map<String, Object> extraParameters,
+                             @Nullable final Map<String, Object> localExtraParameters,
                              final BinaryMessenger messenger,
                              final AppLovinSdk sdk,
                              final Context context)
@@ -70,13 +82,33 @@ public class AppLovinMAXAdView
 
         adView.setExtraParameter( "allow_pause_auto_refresh_immediately", "true" );
 
+        if ( extraParameters != null )
+        {
+            for ( Map.Entry<String, Object> entry : extraParameters.entrySet() )
+            {
+                adView.setExtraParameter( entry.getKey(), (String) entry.getValue() );
+            }
+        }
+
+        if ( localExtraParameters != null )
+        {
+            for ( Map.Entry<String, Object> entry : localExtraParameters.entrySet() )
+            {
+                adView.setLocalExtraParameter( entry.getKey(), entry.getValue() );
+            }
+        }
+
         adView.loadAd();
 
         if ( !isAutoRefreshEnabled )
         {
             adView.stopAutoRefresh();
         }
+
+        adViewInstances.put( adUnitId, adView );
     }
+
+    /// Flutter Lifecycle Methods
 
     @Nullable
     @Override
@@ -96,6 +128,8 @@ public class AppLovinMAXAdView
     {
         if ( adView != null )
         {
+            adViewInstances.remove( adView.getAdUnitId() );
+
             adView.destroy();
             adView.setListener( null );
             adView.setRevenueListener( null );
@@ -116,7 +150,8 @@ public class AppLovinMAXAdView
     @Override
     public void onAdLoadFailed(final String adUnitId, final MaxError error)
     {
-        AppLovinMAX.getInstance().fireErrorCallback( "OnAdViewAdLoadFailedEvent", adUnitId, error, channel );
+        Map params = AppLovinMAX.getInstance().getAdLoadFailedInfo( adUnitId, error );
+        AppLovinMAX.getInstance().fireCallback( "OnAdViewAdLoadFailedEvent", params, channel );
     }
 
     @Override

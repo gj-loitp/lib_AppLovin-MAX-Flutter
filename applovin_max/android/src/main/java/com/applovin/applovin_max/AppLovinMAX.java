@@ -6,6 +6,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Point;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -23,6 +24,7 @@ import com.applovin.mediation.MaxAdRevenueListener;
 import com.applovin.mediation.MaxAdViewAdListener;
 import com.applovin.mediation.MaxAdWaterfallInfo;
 import com.applovin.mediation.MaxError;
+import com.applovin.mediation.MaxErrorCode;
 import com.applovin.mediation.MaxMediatedNetworkInfo;
 import com.applovin.mediation.MaxNetworkResponseInfo;
 import com.applovin.mediation.MaxReward;
@@ -31,18 +33,19 @@ import com.applovin.mediation.ads.MaxAdView;
 import com.applovin.mediation.ads.MaxAppOpenAd;
 import com.applovin.mediation.ads.MaxInterstitialAd;
 import com.applovin.mediation.ads.MaxRewardedAd;
-import com.applovin.sdk.AppLovinAdContentRating;
-import com.applovin.sdk.AppLovinGender;
+import com.applovin.sdk.AppLovinCmpError;
 import com.applovin.sdk.AppLovinMediationProvider;
 import com.applovin.sdk.AppLovinPrivacySettings;
 import com.applovin.sdk.AppLovinSdk;
 import com.applovin.sdk.AppLovinSdkConfiguration;
+import com.applovin.sdk.AppLovinSdkConfiguration.ConsentFlowUserGeography;
 import com.applovin.sdk.AppLovinSdkSettings;
 import com.applovin.sdk.AppLovinSdkUtils;
+import com.applovin.sdk.AppLovinTargetingData.AdContentRating;
+import com.applovin.sdk.AppLovinTargetingData.Gender;
 import com.applovin.sdk.AppLovinUserService;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -65,6 +68,10 @@ public class AppLovinMAX
     private static final String SDK_TAG = "AppLovinSdk";
     private static final String TAG     = "AppLovinMAX";
 
+    private static final String USER_GEOGRAPHY_GDPR    = "G";
+    private static final String USER_GEOGRAPHY_OTHER   = "O";
+    private static final String USER_GEOGRAPHY_UNKNOWN = "U";
+
     public static AppLovinMAX instance;
 
     private MethodChannel         sharedChannel;
@@ -78,11 +85,19 @@ public class AppLovinMAX
     private AppLovinSdkConfiguration sdkConfiguration;
 
     // Store these values if pub attempts to set it before initializing
-    private String       userIdToSet;
-    private List<String> testDeviceAdvertisingIdsToSet;
-    private Boolean      verboseLoggingToSet;
-    private Boolean      creativeDebuggerEnabledToSet;
-    private Boolean      locationCollectionEnabledToSet;
+    private       List<String>        initializationAdUnitIdsToSet;
+    private       String              userIdToSet;
+    private       Boolean             mutedToSet;
+    private       List<String>        testDeviceAdvertisingIdsToSet;
+    private       Boolean             verboseLoggingToSet;
+    private       Boolean             creativeDebuggerEnabledToSet;
+    private       Boolean             locationCollectionEnabledToSet;
+    private final Map<String, String> extraParametersToSet = new HashMap<>( 8 );
+
+    private Boolean termsAndPrivacyPolicyFlowEnabledToSet;
+    private Uri     privacyPolicyURLToSet;
+    private Uri     termsOfServiceURLToSet;
+    private String  debugUserGeographyToSet;
 
     private Integer      targetingYearOfBirthToSet;
     private String       targetingGenderToSet;
@@ -115,7 +130,7 @@ public class AppLovinMAX
     }
 
     @Override
-    public void onAttachedToEngine(@NonNull FlutterPluginBinding binding)
+    public void onAttachedToEngine(@NonNull final FlutterPluginBinding binding)
     {
         // KNOWN ISSUE: onAttachedToEngine will be call twice, which may be caused by using
         // firebase_messaging plugin. See https://github.com/flutter/flutter/issues/97840
@@ -132,10 +147,13 @@ public class AppLovinMAX
 
         AppLovinMAXAdViewFactory adViewFactory = new AppLovinMAXAdViewFactory( binding.getBinaryMessenger() );
         binding.getPlatformViewRegistry().registerViewFactory( "applovin_max/adview", adViewFactory );
+
+        AppLovinMAXNativeAdViewFactory nativeAdViewFactory = new AppLovinMAXNativeAdViewFactory( binding.getBinaryMessenger() );
+        binding.getPlatformViewRegistry().registerViewFactory( "applovin_max/nativeadview", nativeAdViewFactory );
     }
 
     @Override
-    public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding)
+    public void onDetachedFromEngine(@NonNull final FlutterPluginBinding binding)
     {
         sharedChannel.setMethodCallHandler( null );
     }
@@ -162,7 +180,6 @@ public class AppLovinMAX
         // Guard against running init logic multiple times
         if ( isPluginInitialized )
         {
-            result.success( getInitializationMessage() );
             return;
         }
 
@@ -194,39 +211,80 @@ public class AppLovinMAX
             }
         }
 
-        // Initialize SDK
-        sdk = AppLovinSdk.getInstance( sdkKeyToUse, new AppLovinSdkSettings( applicationContext ), applicationContext );
-        sdk.setPluginVersion( "Flutter-" + pluginVersion );
-        sdk.setMediationProvider( AppLovinMediationProvider.MAX );
+        AppLovinSdkSettings settings = new AppLovinSdkSettings( applicationContext );
 
-        if ( !TextUtils.isEmpty( userIdToSet ) )
+        // Selective init
+        if ( initializationAdUnitIdsToSet != null )
         {
-            sdk.setUserIdentifier( userIdToSet );
-            userIdToSet = null;
+            settings.setInitializationAdUnitIds( initializationAdUnitIdsToSet );
+            initializationAdUnitIdsToSet = null;
+        }
+
+        if ( termsAndPrivacyPolicyFlowEnabledToSet != null )
+        {
+            settings.getTermsAndPrivacyPolicyFlowSettings().setEnabled( termsAndPrivacyPolicyFlowEnabledToSet );
+            termsAndPrivacyPolicyFlowEnabledToSet = null;
+        }
+
+        if ( privacyPolicyURLToSet != null )
+        {
+            settings.getTermsAndPrivacyPolicyFlowSettings().setPrivacyPolicyUri( privacyPolicyURLToSet );
+            privacyPolicyURLToSet = null;
+        }
+
+        if ( termsOfServiceURLToSet != null )
+        {
+            settings.getTermsAndPrivacyPolicyFlowSettings().setTermsOfServiceUri( termsOfServiceURLToSet );
+            termsOfServiceURLToSet = null;
+        }
+
+        if ( AppLovinSdkUtils.isValidString( debugUserGeographyToSet ) )
+        {
+            settings.getTermsAndPrivacyPolicyFlowSettings().setDebugUserGeography( getAppLovinConsentFlowUserGeography( debugUserGeographyToSet ) );
+            debugUserGeographyToSet = null;
+        }
+
+        if ( mutedToSet != null )
+        {
+            settings.setMuted( mutedToSet );
+            mutedToSet = null;
         }
 
         if ( testDeviceAdvertisingIdsToSet != null )
         {
-            sdk.getSettings().setTestDeviceAdvertisingIds( testDeviceAdvertisingIdsToSet );
+            settings.setTestDeviceAdvertisingIds( testDeviceAdvertisingIdsToSet );
             testDeviceAdvertisingIdsToSet = null;
         }
 
         if ( verboseLoggingToSet != null )
         {
-            sdk.getSettings().setVerboseLogging( verboseLoggingToSet );
+            settings.setVerboseLogging( verboseLoggingToSet );
             verboseLoggingToSet = null;
         }
 
         if ( creativeDebuggerEnabledToSet != null )
         {
-            sdk.getSettings().setCreativeDebuggerEnabled( creativeDebuggerEnabledToSet );
+            settings.setCreativeDebuggerEnabled( creativeDebuggerEnabledToSet );
             creativeDebuggerEnabledToSet = null;
         }
 
         if ( locationCollectionEnabledToSet != null )
         {
-            sdk.getSettings().setLocationCollectionEnabled( locationCollectionEnabledToSet );
+            settings.setLocationCollectionEnabled( locationCollectionEnabledToSet );
             locationCollectionEnabledToSet = null;
+        }
+
+        setPendingExtraParametersIfNeeded( settings );
+
+        // Initialize SDK
+        sdk = AppLovinSdk.getInstance( sdkKeyToUse, settings, applicationContext );
+        sdk.setPluginVersion( "Flutter-" + pluginVersion );
+        sdk.setMediationProvider( AppLovinMediationProvider.MAX );
+
+        if ( AppLovinSdkUtils.isValidString( userIdToSet ) )
+        {
+            sdk.setUserIdentifier( userIdToSet );
+            userIdToSet = null;
         }
 
         if ( targetingYearOfBirthToSet != null )
@@ -284,16 +342,21 @@ public class AppLovinMAX
 
     private Map<String, Object> getInitializationMessage()
     {
+        Map<String, Object> message = new HashMap<>( 4 );
+
         if ( sdkConfiguration != null )
         {
-            Map<String, Object> message = new HashMap<>( 2 );
             message.put( "consentDialogState", sdkConfiguration.getConsentDialogState().ordinal() );
             message.put( "countryCode", sdkConfiguration.getCountryCode() );
-
-            return message;
+            message.put( "isTestModeEnabled", sdkConfiguration.isTestModeEnabled() );
+            message.put( "consentFlowUserGeography", getRawAppLovinConsentFlowUserGeography( sdkConfiguration.getConsentFlowUserGeography() ) );
+        }
+        else
+        {
+            message.put( "consentDialogState", AppLovinSdkConfiguration.ConsentDialogState.UNKNOWN.ordinal() );
         }
 
-        return Collections.emptyMap();
+        return message;
     }
 
     // General Public API
@@ -377,9 +440,15 @@ public class AppLovinMAX
 
     public void setMuted(final boolean muted)
     {
-        if ( !isPluginInitialized ) return;
-
-        sdk.getSettings().setMuted( muted );
+        if ( isPluginInitialized )
+        {
+            sdk.getSettings().setMuted( muted );
+            mutedToSet = null;
+        }
+        else
+        {
+            mutedToSet = muted;
+        }
     }
 
     public boolean isMuted()
@@ -441,6 +510,89 @@ public class AppLovinMAX
         {
             locationCollectionEnabledToSet = enabled;
         }
+    }
+
+    public void setExtraParameter(final String key, @Nullable final String value)
+    {
+        if ( TextUtils.isEmpty( key ) )
+        {
+            e( "ERROR: Failed to set extra parameter for null or empty key: " + key );
+            return;
+        }
+
+        if ( sdk != null )
+        {
+            AppLovinSdkSettings settings = sdk.getSettings();
+            settings.setExtraParameter( key, value );
+            setPendingExtraParametersIfNeeded( settings );
+        }
+        else
+        {
+            extraParametersToSet.put( key, value );
+        }
+    }
+
+    public void setInitializationAdUnitIds(final List<String> rawAdUnitIds)
+    {
+        initializationAdUnitIdsToSet = new ArrayList<>( rawAdUnitIds );
+    }
+
+    // MAX Terms and Privacy Policy Flow
+
+    public void setTermsAndPrivacyPolicyFlowEnabled(final boolean enabled)
+    {
+        termsAndPrivacyPolicyFlowEnabledToSet = enabled;
+    }
+
+    public void setPrivacyPolicyUrl(final String urlString)
+    {
+        privacyPolicyURLToSet = Uri.parse( urlString );
+    }
+
+    public void setTermsOfServiceUrl(final String urlString)
+    {
+        termsOfServiceURLToSet = Uri.parse( urlString );
+    }
+
+    public void setConsentFlowDebugUserGeography(final String userGeography)
+    {
+        debugUserGeographyToSet = userGeography;
+    }
+
+    public void showCmpForExistingUser(final Result result)
+    {
+        if ( !isPluginInitialized )
+        {
+            logUninitializedAccessError( "showCmpForExistingUser", result );
+            return;
+        }
+
+        sdk.getCmpService().showCmpForExistingUser( getCurrentActivity(), (@Nullable final AppLovinCmpError error) -> {
+
+            if ( error == null )
+            {
+                result.success( null );
+                return;
+            }
+
+            Map<String, Object> params = new HashMap<>( 4 );
+            params.put( "code", error.getCode().getValue() );
+            params.put( "message", error.getMessage() );
+            params.put( "cmpCode", error.getCmpCode() );
+            params.put( "cmpMessage", error.getCmpMessage() );
+            result.success( params );
+        } );
+    }
+
+    public void hasSupportedCmp(final Result result)
+    {
+        if ( !isPluginInitialized )
+        {
+            logUninitializedAccessError( "hasSupportedCmp", result );
+            return;
+        }
+
+        result.success( sdk.getCmpService().hasSupportedCmp() );
     }
 
     // Data Passing
@@ -590,6 +742,11 @@ public class AppLovinMAX
         destroyAdView( adUnitId, getDeviceSpecificBannerAdViewAdFormat() );
     }
 
+    public void getAdaptiveBannerHeightForWidth(final double width, final Result result)
+    {
+        result.success( (double) getDeviceSpecificBannerAdViewAdFormat().getAdaptiveSize( (int) width, applicationContext ).getHeight() );
+    }
+
     // MRECS
 
     public void createMRec(final String adUnitId, final String mrecPosition)
@@ -605,6 +762,11 @@ public class AppLovinMAX
     public void updateMRecPosition(final String adUnitId, final String mrecPosition)
     {
         updateAdViewPosition( adUnitId, mrecPosition, MaxAdFormat.MREC );
+    }
+
+    public void setMRecExtraParameter(final String adUnitId, final String key, final String value)
+    {
+        setAdViewExtraParameters( adUnitId, MaxAdFormat.MREC, key, value );
     }
 
     public void showMRec(final String adUnitId)
@@ -722,12 +884,12 @@ public class AppLovinMAX
     {
         String name;
         MaxAdFormat adFormat = ad.getFormat();
-        if ( MaxAdFormat.BANNER == adFormat || MaxAdFormat.LEADER == adFormat || MaxAdFormat.MREC == adFormat )
+        if ( adFormat.isAdViewAd() )
         {
             name = ( MaxAdFormat.MREC == adFormat ) ? "OnMRecAdLoadedEvent" : "OnBannerAdLoadedEvent";
 
             String adViewPosition = mAdViewPositions.get( ad.getAdUnitId() );
-            if ( !TextUtils.isEmpty( adViewPosition ) )
+            if ( AppLovinSdkUtils.isValidString( adViewPosition ) )
             {
                 // Only position ad if not native UI component
                 positionAdView( ad );
@@ -794,21 +956,7 @@ public class AppLovinMAX
             return;
         }
 
-        fireErrorCallback( name, adUnitId, error, sharedChannel );
-    }
-
-    public void fireErrorCallback(final String name, final String adUnitId, final MaxError error, final MethodChannel channel)
-    {
-        try
-        {
-            Map<String, Object> params = new HashMap<>( 5 );
-            params.put( "adUnitId", adUnitId );
-            params.put( "errorCode", error.getCode() );
-            params.put( "errorMessage", error.getMessage() );
-            params.put( "waterfall", createAdWaterfallInfo( error.getWaterfall() ) );
-            fireCallback( name, params, channel );
-        }
-        catch ( Throwable ignored ) { }
+        fireCallback( name, getAdLoadFailedInfo( adUnitId, error ) );
     }
 
     @Override
@@ -890,14 +1038,7 @@ public class AppLovinMAX
             name = "OnAppOpenAdFailedToDisplayEvent";
         }
 
-        try
-        {
-            Map<String, Object> params = getAdInfo( ad );
-            params.put( "errorCode", error.getCode() );
-            params.put( "errorMessage", error.getMessage() );
-            fireCallback( name, params );
-        }
-        catch ( Throwable ignored ) { }
+        fireCallback( name, getAdDisplayFailedInfo( ad, error ) );
     }
 
     @Override
@@ -928,7 +1069,7 @@ public class AppLovinMAX
     public void onAdExpanded(final MaxAd ad)
     {
         final MaxAdFormat adFormat = ad.getFormat();
-        if ( adFormat != MaxAdFormat.BANNER && adFormat != MaxAdFormat.LEADER && adFormat != MaxAdFormat.MREC )
+        if ( !adFormat.isAdViewAd() )
         {
             logInvalidAdFormat( adFormat );
             return;
@@ -941,7 +1082,7 @@ public class AppLovinMAX
     public void onAdCollapsed(final MaxAd ad)
     {
         final MaxAdFormat adFormat = ad.getFormat();
-        if ( adFormat != MaxAdFormat.BANNER && adFormat != MaxAdFormat.LEADER && adFormat != MaxAdFormat.MREC )
+        if ( !adFormat.isAdViewAd() )
         {
             logInvalidAdFormat( adFormat );
             return;
@@ -1267,6 +1408,18 @@ public class AppLovinMAX
         }
     }
 
+    private void setPendingExtraParametersIfNeeded(final AppLovinSdkSettings settings)
+    {
+        if ( extraParametersToSet.size() <= 0 ) return;
+
+        for ( final String key : extraParametersToSet.keySet() )
+        {
+            settings.setExtraParameter( key, extraParametersToSet.get( key ) );
+        }
+
+        extraParametersToSet.clear();
+    }
+
     // Utility Methods
 
     private void logInvalidAdFormat(MaxAdFormat adFormat)
@@ -1281,7 +1434,20 @@ public class AppLovinMAX
 
     private static void logUninitializedAccessError(final String callingMethod)
     {
-        e( "ERROR: Failed to execute " + callingMethod + "() - please ensure the AppLovin MAX Flutter plugin has been initialized by calling 'AppLovinMAX.initialize(...);'!" );
+        logUninitializedAccessError( callingMethod, null );
+    }
+
+    private static void logUninitializedAccessError(final String callingMethod, @Nullable final Result result)
+    {
+        final String message = "ERROR: Failed to execute " + callingMethod + "() - please ensure the AppLovin MAX Flutter plugin has been initialized by calling 'AppLovinMAX.initialize(...);'!";
+
+        if ( result == null )
+        {
+            e( message );
+            return;
+        }
+
+        result.error( TAG, message, null );
     }
 
     public static void d(final String message)
@@ -1302,6 +1468,7 @@ public class AppLovinMAX
         Log.e( SDK_TAG, fullMessage );
     }
 
+    // NOTE: Do not update signature as some integrations depend on it via Java reflection
     private MaxInterstitialAd retrieveInterstitial(String adUnitId)
     {
         MaxInterstitialAd result = mInterstitials.get( adUnitId );
@@ -1317,6 +1484,7 @@ public class AppLovinMAX
         return result;
     }
 
+    // NOTE: Do not update signature as some integrations depend on it via Java reflection
     private MaxRewardedAd retrieveRewardedAd(String adUnitId)
     {
         MaxRewardedAd result = mRewardedAds.get( adUnitId );
@@ -1332,6 +1500,7 @@ public class AppLovinMAX
         return result;
     }
 
+    // NOTE: Do not update signature as some integrations depend on it via Java reflection
     private MaxAppOpenAd retrieveAppOpenAd(String adUnitId)
     {
         MaxAppOpenAd result = mAppOpenAds.get( adUnitId );
@@ -1347,6 +1516,7 @@ public class AppLovinMAX
         return result;
     }
 
+    // NOTE: Do not update signature as some integrations depend on it via Java reflection
     private MaxAdView retrieveAdView(String adUnitId, MaxAdFormat adFormat)
     {
         return retrieveAdView( adUnitId, adFormat, null );
@@ -1452,18 +1622,44 @@ public class AppLovinMAX
 
     // AD INFO
 
-    private Map<String, Object> getAdInfo(final MaxAd ad)
+    public Map<String, Object> getAdInfo(final MaxAd ad)
     {
         Map<String, Object> adInfo = new HashMap<>( 7 );
         adInfo.put( "adUnitId", ad.getAdUnitId() );
-        adInfo.put( "creativeId", !TextUtils.isEmpty( ad.getCreativeId() ) ? ad.getCreativeId() : "" );
+        adInfo.put( "creativeId", AppLovinSdkUtils.isValidString( ad.getCreativeId() ) ? ad.getCreativeId() : "" );
         adInfo.put( "networkName", ad.getNetworkName() );
-        adInfo.put( "placement", !TextUtils.isEmpty( ad.getPlacement() ) ? ad.getPlacement() : "" );
+        adInfo.put( "placement", AppLovinSdkUtils.isValidString( ad.getPlacement() ) ? ad.getPlacement() : "" );
         adInfo.put( "revenue", ad.getRevenue() );
-        adInfo.put( "dspName", !TextUtils.isEmpty( ad.getDspName() ) ? ad.getDspName() : "" );
+        adInfo.put( "revenuePrecision", ad.getRevenuePrecision() );
+        adInfo.put( "dspName", AppLovinSdkUtils.isValidString( ad.getDspName() ) ? ad.getDspName() : "" );
         adInfo.put( "waterfall", createAdWaterfallInfo( ad.getWaterfall() ) );
 
         return adInfo;
+    }
+
+    public Map<String, Object> getAdLoadFailedInfo(final String adUnitId, @Nullable final MaxError error)
+    {
+        Map<String, Object> errorInfo = new HashMap<>( 4 );
+        errorInfo.put( "adUnitId", adUnitId );
+        if ( error != null )
+        {
+            errorInfo.put( "code", error.getCode() );
+            errorInfo.put( "message", error.getMessage() );
+            errorInfo.put( "waterfall", createAdWaterfallInfo( error.getWaterfall() ) );
+        }
+        else
+        {
+            errorInfo.put( "code", MaxErrorCode.UNSPECIFIED );
+        }
+        return errorInfo;
+    }
+
+    public Map<String, Object> getAdDisplayFailedInfo(final MaxAd ad, final MaxError error)
+    {
+        Map<String, Object> info = new HashMap<>( 2 );
+        info.put( "ad", getAdInfo( ad ) );
+        info.put( "error", getAdLoadFailedInfo( ad.getAdUnitId(), error ) );
+        return info;
     }
 
     // AD WATERFALL INFO
@@ -1520,16 +1716,98 @@ public class AppLovinMAX
         MaxError error = response.getError();
         if ( error != null )
         {
-            Map<String, Object> errorObject = new HashMap<>( 2 );
-            errorObject.put( "message", error.getMessage() );
-            errorObject.put( "code", error.getCode() );
-
-            networkResponseObject.put( "error", errorObject );
+            networkResponseObject.put( "error", getAdLoadFailedInfo( "", error ) );
         }
 
         networkResponseObject.put( "latencyMillis", response.getLatencyMillis() );
 
         return networkResponseObject;
+    }
+
+    // Amazon
+
+    public void setAmazonBannerResult(final Object result, final String adUnitId)
+    {
+        setAmazonResult( result, adUnitId, MaxAdFormat.BANNER );
+    }
+
+    public void setAmazonMRecResult(final Object result, final String adUnitId)
+    {
+        setAmazonResult( result, adUnitId, MaxAdFormat.MREC );
+    }
+
+    public void setAmazonInterstitialResult(final Object result, final String adUnitId)
+    {
+        setAmazonResult( result, adUnitId, MaxAdFormat.INTERSTITIAL );
+    }
+
+    public void setAmazonRewardedResult(final Object result, final String adUnitId)
+    {
+        setAmazonResult( result, adUnitId, MaxAdFormat.REWARDED );
+    }
+
+    private void setAmazonResult(final Object result, final String adUnitId, final MaxAdFormat adFormat)
+    {
+        if ( sdk == null )
+        {
+            logUninitializedAccessError( "Failed to set Amazon result - SDK not initialized: " + adUnitId );
+            return;
+        }
+
+        if ( result == null )
+        {
+            e( "Failed to set Amazon result - null value" );
+            return;
+        }
+
+        String key = getLocalExtraParameterKeyForAmazonResult( result );
+
+        if ( adFormat == MaxAdFormat.INTERSTITIAL )
+        {
+            MaxInterstitialAd interstitial = retrieveInterstitial( adUnitId );
+            if ( interstitial == null )
+            {
+                e( "Failed to set Amazon result - unable to find interstitial" );
+                return;
+            }
+
+            interstitial.setLocalExtraParameter( key, result );
+        }
+        else if ( adFormat == MaxAdFormat.REWARDED )
+        {
+            MaxRewardedAd rewardedAd = retrieveRewardedAd( adUnitId );
+            if ( rewardedAd == null )
+            {
+                e( "Failed to set Amazon result - unable to find rewarded ad" );
+                return;
+            }
+
+            rewardedAd.setLocalExtraParameter( key, result );
+        }
+        else // MaxAdFormat.BANNER or MaxAdFormat.MREC
+        {
+            MaxAdView adView = AppLovinMAXAdView.getInstance( adUnitId );
+
+            if ( adView == null )
+            {
+                adView = retrieveAdView( adUnitId, adFormat );
+            }
+
+            if ( adView != null )
+            {
+                adView.setLocalExtraParameter( key, result );
+            }
+            else
+            {
+                e( "Failed to set Amazon result - unable to find " + adFormat );
+            }
+        }
+    }
+
+    private String getLocalExtraParameterKeyForAmazonResult(final Object /* DTBAdResponse or AdError */ result)
+    {
+        String className = result.getClass().getSimpleName();
+        return "DTBAdResponse".equalsIgnoreCase( className ) ? "amazon_ad_response" : "amazon_ad_error";
     }
 
     // Utility Methods
@@ -1581,43 +1859,71 @@ public class AppLovinMAX
         return new Point( AppLovinSdkUtils.dpToPx( context, (int) xDp ), AppLovinSdkUtils.dpToPx( context, (int) yDp ) );
     }
 
-    private static AppLovinGender getAppLovinGender(@Nullable String gender)
+    private static Gender getAppLovinGender(@Nullable String gender)
     {
         if ( gender != null )
         {
             if ( "F".equalsIgnoreCase( gender ) )
             {
-                return AppLovinGender.FEMALE;
+                return Gender.FEMALE;
             }
             else if ( "M".equalsIgnoreCase( gender ) )
             {
-                return AppLovinGender.MALE;
+                return Gender.MALE;
             }
             else if ( "O".equalsIgnoreCase( gender ) )
             {
-                return AppLovinGender.OTHER;
+                return Gender.OTHER;
             }
         }
 
-        return AppLovinGender.UNKNOWN;
+        return Gender.UNKNOWN;
     }
 
-    private static AppLovinAdContentRating getAppLovinAdContentRating(int maximumAdContentRating)
+    private static AdContentRating getAppLovinAdContentRating(int maximumAdContentRating)
     {
         if ( maximumAdContentRating == 1 )
         {
-            return AppLovinAdContentRating.ALL_AUDIENCES;
+            return AdContentRating.ALL_AUDIENCES;
         }
         else if ( maximumAdContentRating == 2 )
         {
-            return AppLovinAdContentRating.EVERYONE_OVER_TWELVE;
+            return AdContentRating.EVERYONE_OVER_TWELVE;
         }
         else if ( maximumAdContentRating == 3 )
         {
-            return AppLovinAdContentRating.MATURE_AUDIENCES;
+            return AdContentRating.MATURE_AUDIENCES;
         }
 
-        return AppLovinAdContentRating.NONE;
+        return AdContentRating.NONE;
+    }
+
+    private static ConsentFlowUserGeography getAppLovinConsentFlowUserGeography(final String userGeography)
+    {
+        if ( USER_GEOGRAPHY_GDPR.equalsIgnoreCase( userGeography ) )
+        {
+            return ConsentFlowUserGeography.GDPR;
+        }
+        else if ( USER_GEOGRAPHY_OTHER.equalsIgnoreCase( userGeography ) )
+        {
+            return ConsentFlowUserGeography.OTHER;
+        }
+
+        return ConsentFlowUserGeography.UNKNOWN;
+    }
+
+    private static String getRawAppLovinConsentFlowUserGeography(final ConsentFlowUserGeography userGeography)
+    {
+        if ( ConsentFlowUserGeography.GDPR == userGeography )
+        {
+            return USER_GEOGRAPHY_GDPR;
+        }
+        else if ( ConsentFlowUserGeography.OTHER == userGeography )
+        {
+            return USER_GEOGRAPHY_OTHER;
+        }
+
+        return USER_GEOGRAPHY_UNKNOWN;
     }
 
     // Flutter channel
@@ -1724,6 +2030,57 @@ public class AppLovinMAX
 
             result.success( null );
         }
+        else if ( "setExtraParameter".equals( call.method ) )
+        {
+            String key = call.argument( "key" );
+            String value = call.argument( "value" );
+            setExtraParameter( key, value );
+
+            result.success( null );
+        }
+        else if ( "setInitializationAdUnitIds".equals( call.method ) )
+        {
+            List<String> adUnitIds = call.argument( "value" );
+            setInitializationAdUnitIds( adUnitIds );
+
+            result.success( null );
+        }
+        else if ( "setTermsAndPrivacyPolicyFlowEnabled".equals( call.method ) )
+        {
+            boolean value = call.argument( "value" );
+            setTermsAndPrivacyPolicyFlowEnabled( value );
+
+            result.success( null );
+        }
+        else if ( "setPrivacyPolicyUrl".equals( call.method ) )
+        {
+            String value = call.argument( "value" );
+            setPrivacyPolicyUrl( value );
+
+            result.success( null );
+        }
+        else if ( "setTermsOfServiceUrl".equals( call.method ) )
+        {
+            String value = call.argument( "value" );
+            setTermsOfServiceUrl( value );
+
+            result.success( null );
+        }
+        else if ( "setConsentFlowDebugUserGeography".equals( call.method ) )
+        {
+            String value = call.argument( "value" );
+            setConsentFlowDebugUserGeography( value );
+
+            result.success( null );
+        }
+        else if ( "showCmpForExistingUser".equals( call.method ) )
+        {
+            showCmpForExistingUser( result );
+        }
+        else if ( "hasSupportedCmp".equals( call.method ) )
+        {
+            hasSupportedCmp( result );
+        }
         else if ( "createBanner".equals( call.method ) )
         {
             String adUnitId = call.argument( "ad_unit_id" );
@@ -1807,6 +2164,11 @@ public class AppLovinMAX
 
             result.success( null );
         }
+        else if ( "getAdaptiveBannerHeightForWidth".equals( call.method ) )
+        {
+            double width = call.argument( "width" );
+            getAdaptiveBannerHeightForWidth( width, result );
+        }
         else if ( "createMRec".equals( call.method ) )
         {
             String adUnitId = call.argument( "ad_unit_id" );
@@ -1828,6 +2190,15 @@ public class AppLovinMAX
             String adUnitId = call.argument( "ad_unit_id" );
             String position = call.argument( "position" );
             updateMRecPosition( adUnitId, position );
+
+            result.success( null );
+        }
+        else if ( "setMRecExtraParameter".equals( call.method ) )
+        {
+            String adUnitId = call.argument( "ad_unit_id" );
+            String key = call.argument( "key" );
+            String value = call.argument( "value" );
+            setMRecExtraParameter( adUnitId, key, value );
 
             result.success( null );
         }

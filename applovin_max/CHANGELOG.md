@@ -1,5 +1,62 @@
 ## Versions
 
+## 3.9.2
+* Fix crash on `AppLovinMAX.initialize()` with `java.lang.IllegalStateException: Reply already submitted`.
+## 3.9.1
+* Depends on Android SDK v12.4.2 and iOS SDK v12.4.1.
+## 3.9.0
+* Depends on Android SDK v12.4.0 and iOS SDK v12.4.0.
+## 3.8.1
+* Depends on Android SDK v12.3.1 and iOS SDK v12.3.1.
+## 3.8.0
+* Depends on Android SDK v12.3.0 and iOS SDK v12.3.0.
+* Add support to classify waterfall objects. For more info, check out our [docs](https://dash.applovin.com/documentation/mediation/flutter/getting-started/advanced-settings#waterfall-information-api).
+* Refactored error handling logic.
+## 3.7.0
+* Depends on Android SDK v12.2.0 and iOS SDK v12.2.1.
+* Add `MaxCMPError` to encapsulate a return object of `AppLovinMAX.showCmpForExistingUser()`. For more info, check out our [docs](https://dash.applovin.com/documentation/mediation/flutter/getting-started/terms-and-privacy-policy-flow#showing-gdpr-flow-to-existing-users).
+* Fix banner/MREC background not hiding.
+* Update the comment description for `AppLovinMAX.setTestDeviceAdvertisingIds(...)`.
+* Fix NPE for accessing a `null` `methodChannel` in `MaxAdView`. https://github.com/AppLovin/AppLovin-MAX-Flutter/issues/176
+* Fix linter warnings.
+## 3.6.0
+* Fix NPE for accessing a null native ad on Android.
+* Update `AppLovinMAX.showCmpForExistingUser()` to return `CmpError` instead of `int` raw value.
+* Add `MaxConfiguration` to encapsulate a return object of `AppLovinMAX.initialize(...)`.
+* Add support for Amazon bidding for rewarded ads.
+## 3.5.0
+* Add support for showing Google UMP to existing users for integrations using our Google UMP Automation feature. For more info, check out our [docs](https://dash.applovin.com/documentation/mediation/flutter/getting-started/terms-and-privacy-policy-flow#showing-gdpr-flow-to-existing-users).
+* Add better support for Amazon bidding.
+## 3.4.1
+* Allow calls to `AppLovinMAX.setMuted(...)` before SDK is initialized.
+* Depends on Android SDK v12.1.0 and iOS SDK v12.1.0.
+## 3.4.0
+* Add support for Selective Init. For more info, check out our [docs](https://dash.applovin.com/documentation/mediation/flutter/getting-started/advanced-settings#selective-init).
+* Add support for Terms and Privacy Policy Flow. For more info, check out our [docs](https://dash.applovin.com/documentation/mediation/flutter/getting-started/terms-and-privacy-policy-flow).
+* Add support for `AppLovinMAX.setMRecExtraParameter()` API.
+* Add support for `AppLovinMAX.setExtraParameter()` API.
+* Depends on Android SDK v12.0.0 and iOS SDK v12.0.0.
+* Fix `starRating` not correctly converting from platform on iOS.
+## 3.3.0
+* Add `revenuePrecision` API to the `MaxAd` object returned in ad callbacks. For more info, check out our [docs](https://dash.applovin.com/documentation/mediation/flutter/getting-started/advanced-settings#impression-level-user-revenue-api).
+* Replace `MediaQuery.devicePixelRatioOf` with `MediaQuery.of().devicePixelRatio`. https://github.com/AppLovin/AppLovin-MAX-Flutter/issues/120
+## 3.2.0
+* Add support for widget adaptive banners via `MaxAdView(extraParameters: {"adaptive_banner": "true"}, ... )`.
+## 3.1.2
+* Fix `LateInitializationError` when building native ad widget. Fixes https://github.com/AppLovin/AppLovin-MAX-Flutter/issues/113.
+## 3.1.1
+* Depends on Android SDK v11.11.2 and iOS SDK v11.11.2.
+## 3.1.0
+* Depends on Android SDK v11.11.1 and iOS SDK v11.11.2.
+* Fix banner and MREC widgets occupying space before it is loaded. https://github.com/AppLovin/AppLovin-MAX-Flutter/issues/40
+* Add API for passing extra parameters and local extra parameters for widget banners, MRECs, and native ads.
+* Fix blank media views for Mintegral native ads.
+## 3.0.1
+* Fix native ad app icon not rendering on Android.
+## 3.0.0
+* Add support for native ads. Please refer to our documentation [here](https://dash.applovin.com/documentation/mediation/flutter/ad-formats/native-manual)) for more info. Addresses https://github.com/AppLovin/AppLovin-MAX-Flutter/issues/26.
+## 2.6.0
+* Depends on Android SDK v11.10.1 and iOS SDK v11.10.1.
 ## 2.5.0
 * Depends on Android SDK v11.9.0 and iOS SDK v11.9.0.
 * Fix ad load failure callbacks not firing for widget banners/MRECs. Fixes https://github.com/AppLovin/AppLovin-MAX-Flutter/issues/62.
